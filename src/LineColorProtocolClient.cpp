@@ -246,7 +246,7 @@ bool ColorSensorI2C::solicitarDados(uint8_t comando, uint8_t quantidade, unsigne
   unsigned long startTime = millis();
   uint8_t requested = wire->requestFrom((int)_slaveAddress, (int)quantidade);
 
-  while (wire->available() < quantidade)
+  while (wire->available() < requested)
     if (millis() - startTime >= timeout)
     {
       setCommError(COMM_ERR_RX_TIMEOUT);
@@ -263,17 +263,16 @@ bool ColorSensorI2C::solicitarDados(uint8_t comando, uint8_t quantidade, unsigne
     i++;
   }
 
-
-  if (requested != quantidade) {
-    LCP_LOG_PRINT(F("Erro I2C RX curto: "));
-    LCP_LOG_PRINT(requested);
+  if (i != requested || requested < 3) {
+    LCP_LOG_PRINT(F("Erro I2C RX invalido: "));
+    LCP_LOG_PRINT(i);
     LCP_LOG_PRINT(F("/"));
-    LCP_LOG_PRINTLN(quantidade);
+    LCP_LOG_PRINTLN(requested);
     setCommError(COMM_ERR_RX_SHORT);
     return false;
   }
 
-  if (i != quantidade || !checksum(dataIn, i)) {
+  if (!checksum(dataIn, requested)) {
     LCP_LOG_PRINTLN(F("Erro: checksum"));
     setCommError(COMM_ERR_CHECKSUM);
     return false;
@@ -287,7 +286,7 @@ bool ColorSensorI2C::solicitarDados(uint8_t comando, uint8_t quantidade, unsigne
 
   if (isWriteCommand(comando)) {
     // ACK frame: [seq][cmd][status][crc8]
-    if (quantidade != 4 || dataIn[1] != comando) {
+    if (requested != 4 || dataIn[1] != comando) {
       setCommError(COMM_ERR_RX_SHORT);
       return false;
     }
@@ -298,6 +297,99 @@ bool ColorSensorI2C::solicitarDados(uint8_t comando, uint8_t quantidade, unsigne
     }
     setCommSuccess();
     return true;
+  }
+
+  const uint8_t payloadLen = (uint8_t)(requested - 2);
+
+  switch (comando) {
+    case READ_COLOR:
+      if (payloadLen != 4) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
+    case READ_RAW_RGBW:
+      if (payloadLen != 16) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
+    case READ_POSITION:
+      if (payloadLen != 2) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
+    case READ_IR_BOOLEAN:
+      if (payloadLen != 1) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
+    case READ_DEVICE_INFO:
+      if (payloadLen != 8) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
+    case READ_STATS:
+      if (payloadLen != 24) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
+    case READ_IR_CALIBRATED:
+    case READ_CALIBRATION_MIN:
+    case READ_CALIBRATION_MAX:
+      if (payloadLen == 0 || (payloadLen & 0x01) != 0) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      sensorCount = (uint8_t)(payloadLen / 2);
+      if (sensorCount == 0 || sensorCount > QTRMaxSensors) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
+    case READ_LINE_SNAPSHOT:
+      if (payloadLen < 7) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      if (dataIn[1] == 0 || dataIn[1] > QTRMaxSensors) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      if (payloadLen != (uint8_t)(5 + (dataIn[1] * 2))) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
+    case READ_LINE_COLOR_SNAPSHOT:
+      if (payloadLen < 11) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      if (dataIn[1] == 0 || dataIn[1] > QTRMaxSensors) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      if (payloadLen != (uint8_t)(9 + (dataIn[1] * 2))) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
+    default:
+      break;
   }
 
   // Armazena somente o payload (sem seq e sem crc)
@@ -554,7 +646,25 @@ bool ColorSensorI2C::isWriteCommand(uint8_t comando) const {
 // Entradas: `comando`.
 // Exemplo: `uint8_t n = sensor.expectedResponseLength(READ_STATS); // uso interno`
 uint8_t ColorSensorI2C::expectedResponseLength(uint8_t comando) const {
-  return LineColorProtocol::expectedResponseLength(comando, sensorCount);
+  uint8_t countForSizing = sensorCount;
+
+  if (!handshakeOk) {
+    switch (comando) {
+      case READ_IR_CALIBRATED:
+      case READ_CALIBRATION_MIN:
+      case READ_CALIBRATION_MAX:
+      case READ_LINE_SNAPSHOT:
+      case READ_LINE_COLOR_SNAPSHOT:
+        // Compatibilidade: sem handshake, solicita tamanho máximo para não
+        // falhar se o escravo estiver com sensorCount diferente.
+        countForSizing = QTRMaxSensors;
+        break;
+      default:
+        break;
+    }
+  }
+
+  return LineColorProtocol::expectedResponseLength(comando, countForSizing);
 }
 
 //==========================================================================

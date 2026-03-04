@@ -2,6 +2,9 @@
 
 namespace LineColorProtocol {
 
+// Descricao: Calcula o CRC-8 (polinomio 0x07) de um buffer.
+// Entradas: `data`, `len`.
+// Exemplo: `uint8_t c = LineColorProtocol::crc8(buf, len);`
 uint8_t crc8(const uint8_t *data, uint8_t len)
 {
   uint8_t crc = 0x00;
@@ -18,23 +21,35 @@ uint8_t crc8(const uint8_t *data, uint8_t len)
   return crc;
 }
 
+// Descricao: Confere se o ultimo byte do frame bate com o CRC-8 calculado.
+// Entradas: `data`, `len`.
+// Exemplo: `bool ok = LineColorProtocol::frameCRCValid(frame, frameLen);`
 bool frameCRCValid(const uint8_t *data, uint8_t len)
 {
   if (len < 2) return false;
   return crc8(data, (uint8_t)(len - 1)) == data[len - 1];
 }
 
+// Descricao: Calcula e adiciona o CRC-8 no final do frame.
+// Entradas: `data`, `len`.
+// Exemplo: `LineColorProtocol::appendCRC(frame, frameLen);`
 void appendCRC(uint8_t *data, uint8_t &len)
 {
   data[len++] = crc8(data, len);
 }
 
+// Descricao: Adiciona um valor de 16 bits em formato big-endian no buffer.
+// Entradas: `data`, `len`, `value`.
+// Exemplo: `LineColorProtocol::appendU16BE(frame, frameLen, 950);`
 void appendU16BE(uint8_t *data, uint8_t &len, uint16_t value)
 {
   data[len++] = (uint8_t)(value >> 8);
   data[len++] = (uint8_t)(value & 0xFF);
 }
 
+// Descricao: Adiciona um valor de 32 bits em formato big-endian no buffer.
+// Entradas: `data`, `len`, `value`.
+// Exemplo: `LineColorProtocol::appendU32BE(frame, frameLen, 123456UL);`
 void appendU32BE(uint8_t *data, uint8_t &len, uint32_t value)
 {
   data[len++] = (uint8_t)(value >> 24);
@@ -43,11 +58,17 @@ void appendU32BE(uint8_t *data, uint8_t &len, uint32_t value)
   data[len++] = (uint8_t)(value & 0xFF);
 }
 
+// Descricao: Le um inteiro de 16 bits em formato big-endian a partir de um buffer.
+// Entradas: `data`.
+// Exemplo: `uint16_t v = LineColorProtocol::readU16BE(&frame[0]);`
 uint16_t readU16BE(const uint8_t *data)
 {
   return ((uint16_t)data[0] << 8) | data[1];
 }
 
+// Descricao: Le um inteiro de 32 bits em formato big-endian a partir de um buffer.
+// Entradas: `data`.
+// Exemplo: `uint32_t v = LineColorProtocol::readU32BE(&frame[0]);`
 uint32_t readU32BE(const uint8_t *data)
 {
   return ((uint32_t)data[0] << 24) |
@@ -56,6 +77,9 @@ uint32_t readU32BE(const uint8_t *data)
          ((uint32_t)data[3]);
 }
 
+// Descricao: Verifica se o comando pertence ao grupo de escrita/configuracao.
+// Entradas: `command`.
+// Exemplo: `bool wr = LineColorProtocol::isWriteCommand(LineColorProtocol::SET_THRESHOLD);`
 bool isWriteCommand(uint8_t command)
 {
   switch (command) {
@@ -70,6 +94,9 @@ bool isWriteCommand(uint8_t command)
   }
 }
 
+// Descricao: Verifica se o comando pertence ao grupo de leitura.
+// Entradas: `command`.
+// Exemplo: `bool rd = LineColorProtocol::isReadCommand(LineColorProtocol::READ_STATS);`
 bool isReadCommand(uint8_t command)
 {
   switch (command) {
@@ -90,11 +117,17 @@ bool isReadCommand(uint8_t command)
   }
 }
 
+// Descricao: Verifica se o comando existe no protocolo conhecido.
+// Entradas: `command`.
+// Exemplo: `bool known = LineColorProtocol::isKnownCommand(cmd);`
 bool isKnownCommand(uint8_t command)
 {
   return isReadCommand(command) || isWriteCommand(command);
 }
 
+// Descricao: Indica se o comando exige atualizar o snapshot no modo REQUEST.
+// Entradas: `command`.
+// Exemplo: `bool refresh = LineColorProtocol::requiresRefreshInRequestMode(LineColorProtocol::READ_LINE_SNAPSHOT);`
 bool requiresRefreshInRequestMode(uint8_t command)
 {
   switch (command) {
@@ -111,6 +144,9 @@ bool requiresRefreshInRequestMode(uint8_t command)
   }
 }
 
+// Descricao: Retorna o tamanho esperado da resposta para um comando e quantidade de sensores.
+// Entradas: `command`, `sensorCount`.
+// Exemplo: `uint8_t n = LineColorProtocol::expectedResponseLength(LineColorProtocol::READ_STATS, 6);`
 uint8_t expectedResponseLength(uint8_t command, uint8_t sensorCount)
 {
   if (sensorCount > 8) sensorCount = 8;
@@ -136,6 +172,9 @@ uint8_t expectedResponseLength(uint8_t command, uint8_t sensorCount)
   }
 }
 
+// Descricao: Monta a mascara de status do protocolo a partir dos estados do sensor.
+// Entradas: `qtrCalibrated`, `onLine`.
+// Exemplo: `uint8_t flags = LineColorProtocol::protocolStatusFlags(true, false);`
 uint8_t protocolStatusFlags(bool qtrCalibrated, bool onLine)
 {
   uint8_t flags = 0;
@@ -144,6 +183,9 @@ uint8_t protocolStatusFlags(bool qtrCalibrated, bool onLine)
   return flags;
 }
 
+// Descricao: Retorna o nome textual de um comando do protocolo.
+// Entradas: `command`.
+// Exemplo: `const char *name = LineColorProtocol::commandName(LineColorProtocol::READ_COLOR);`
 const char *commandName(uint8_t command)
 {
   switch (command) {
@@ -167,6 +209,9 @@ const char *commandName(uint8_t command)
   }
 }
 
+// Descricao: Retorna o nome textual de um codigo ACK do protocolo.
+// Entradas: `status`.
+// Exemplo: `const char *name = LineColorProtocol::ackStatusName(LineColorProtocol::ACK_OK);`
 const char *ackStatusName(uint8_t status)
 {
   switch (status) {
@@ -182,4 +227,3 @@ const char *ackStatusName(uint8_t status)
 }
 
 }  // namespace LineColorProtocol
-

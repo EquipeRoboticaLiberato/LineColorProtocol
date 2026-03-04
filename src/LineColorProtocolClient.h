@@ -45,7 +45,8 @@ enum COLORS {
   _ERROR
 };
 
-const String colorStr[] = {"RED", "GREEN", "BLUE", "WHITE", "BLACK", "YELLOW", "CYAN", "MAGENTA", "GREY", "SILVER", "NO COLOR", "ERROR"};
+// Compatibilidade com sketches antigos: tabela global indexada por enum de cor.
+extern const char * const colorStr[12];
 
 static constexpr uint8_t CONTINUOUS = LineColorProtocol::CONTINUOUS;
 static constexpr uint8_t REQUEST = LineColorProtocol::REQUEST;
@@ -199,12 +200,12 @@ class ColorSensorI2C {
     uint32_t getLastEepromWriteMillisRemote() const;
     uint16_t getEepromUnlockRemainingMsRemote() const;
 
-    static constexpr const char* colorStr[9] = {"RED", "GREEN", "BLUE", "WHITE", "BLACK", "YELLOW", "SILVER", "NO COLOR", "ERROR"};
+    // Alias de compatibilidade para a tabela global `::colorStr`.
+    static const char * const * colorStr;
 
   private:
   
     bool solicitarDados(uint8_t comando, uint8_t quantidade, unsigned long timeout, uint8_t expectedSeq);
-    uint8_t processarComando(uint8_t comando);
     bool checksum(byte *values, uint8_t numBytes);
     void storeValues(byte *values, uint8_t comando);
     uint8_t adjustBoolean(uint8_t sensorData, uint8_t numSensors);
@@ -243,8 +244,7 @@ class ColorSensorI2C {
     uint8_t txSequence = 0;
     uint8_t lastAckStatus = ACK_OK;
     unsigned long stalenessTimeoutMs = 500;
-    uint32_t i2cClockHz = 100000UL;
-
+    
     uint32_t remoteUptimeMs = 0;
     uint16_t remoteRxCrcErrors = 0;
     uint16_t remoteRxFrameErrors = 0;

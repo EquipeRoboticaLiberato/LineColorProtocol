@@ -35,7 +35,9 @@ bool frameCRCValid(const uint8_t *data, uint8_t len)
 // Exemplo: `LineColorProtocol::appendCRC(frame, frameLen);`
 void appendCRC(uint8_t *data, uint8_t &len)
 {
-  data[len++] = crc8(data, len);
+  const uint8_t crc = crc8(data, len);
+  data[len] = crc;
+  len++;
 }
 
 // Descricao: Adiciona um valor de 16 bits em formato big-endian no buffer.

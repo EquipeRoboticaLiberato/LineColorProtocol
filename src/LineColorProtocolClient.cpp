@@ -188,7 +188,7 @@ bool ColorSensorI2C::enviarComando(uint8_t comando, unsigned long timeout) {
     setCommError(COMM_ERR_INVALID_SIZE);
     return false;
   }
-  frame[frameLen++] = crc8(frame, frameLen);
+  LineColorProtocol::appendCRC(frame, frameLen);
 
   const uint8_t maxAttempts = expectsResponse ? 3 : 2;
   const unsigned long perAttemptTimeout = max((unsigned long)20, timeout / max((unsigned long)1, (unsigned long)maxAttempts));

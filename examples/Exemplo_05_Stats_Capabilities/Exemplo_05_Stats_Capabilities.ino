@@ -6,11 +6,10 @@ using namespace LineColorProtocol;
 void setup() {
   Serial.begin(115200);
 
-  Serial.println(F("=== Exemplo 05: Stats + Capabilities ==="));
+  Serial.println(F("=== Exemplo 05: Stats + Helpers Avancados ==="));
 
-  uint32_t caps = CAPABILITIES_DEFAULT;
-  Serial.print(F("Capabilities mask = 0x"));
-  Serial.println(caps, HEX);
+  Serial.print(F("Mascara do device info = 0x"));
+  Serial.println(CAPABILITIES_DEFAULT, HEX);
 
   const uint8_t sensorCount = 6;
   Serial.print(F("Resp len READ_STATS: "));

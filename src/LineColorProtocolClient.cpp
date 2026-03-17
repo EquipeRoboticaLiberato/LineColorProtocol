@@ -56,43 +56,27 @@ void ColorSensorI2C::begin(uint32_t clockHz) {
 
 //==========================================================================
 
-// Descricao: Le os dados de linha, usando snapshot unico quando suportado.
+// Descricao: Le os dados de linha usando o snapshot unico do protocolo atual.
 // Entradas: sem parametros.
 // Exemplo: `sensor.readLine();`
 void ColorSensorI2C::readLine(){
 
   tryHandshakeIfNeeded();
   syncThresholdIfNeeded();
-
-  if (supportsLineSnapshot() && enviarComando(READ_LINE_SNAPSHOT)) {
-    return;
-  }
-
-  // Fallback para firmwares antigos ou falha temporária do snapshot.
-  enviarComando(READ_IR_CALIBRATED);
-  //enviarComando(READ_IR_RAW);
-  enviarComando(READ_POSITION);
-  enviarComando(READ_IR_BOOLEAN);
+  enviarComando(READ_LINE_SNAPSHOT);
 
 }
 
 //==========================================================================
 
-// Descricao: Le linha e cor em uma unica chamada, com fallback para comandos separados.
+// Descricao: Le linha e cor em uma unica chamada usando o snapshot combinado atual.
 // Entradas: sem parametros.
 // Exemplo: `sensor.readLineAndColor();`
 bool ColorSensorI2C::readLineAndColor(){
 
   tryHandshakeIfNeeded();
   syncThresholdIfNeeded();
-
-  if (supportsLineColorSnapshot()) {
-    return enviarComando(READ_LINE_COLOR_SNAPSHOT);
-  }
-
-  readLine();
-  readColor();
-  return lastError == COMM_OK;
+  return enviarComando(READ_LINE_COLOR_SNAPSHOT);
 
 }
 
@@ -117,7 +101,6 @@ void ColorSensorI2C::readColor(){
 // Exemplo: `sensor.readStats();`
 bool ColorSensorI2C::readStats(){
   tryHandshakeIfNeeded();
-  if ((capabilityFlags & CAP_READ_STATS) == 0) return false;
   return enviarComando(READ_STATS, 100);
 }
 
@@ -128,7 +111,6 @@ bool ColorSensorI2C::readStats(){
 // Exemplo: `sensor.armEepromWrite();`
 bool ColorSensorI2C::armEepromWrite(){
   tryHandshakeIfNeeded();
-  if ((capabilityFlags & CAP_EEPROM_UNLOCK) == 0) return false;
   return enviarComando(ARM_EEPROM_WRITE, 100);
 }
 
@@ -418,13 +400,8 @@ void ColorSensorI2C::storeValues(byte *values, uint8_t comando) {
       break;
     //----------------------
     case READ_RAW_RGBW:
-//      expectedBytes = 17;  // Espera 17 bytes de resposta
-      for(int i=0; i<=_WHITE; i++)
-        direita.rawRGB[i] = values[i*2] << 8 | values[(i*2)+1];
-
-      for(int i=0; i<=_WHITE; i++)
-        esquerda.rawRGB[i] = values[(i*2)+8] << 8 | values[(i*2)+9];
-          
+      // Mantido apenas para validacao do frame; a biblioteca nao armazena
+      // mais os canais crus para economizar RAM no mestre.
       break;
     //----------------------
 //    case READ_IR_RAW:
@@ -518,44 +495,30 @@ void ColorSensorI2C::storeValues(byte *values, uint8_t comando) {
         sensorCount = values[1];
       }
 
-      remoteMode = values[2];
-      capabilityFlags = readU32BE(&values[3]);
       remoteStatusFlags = values[7];
-      handshakeOk = (protocolVersion >= PROTOCOL_VERSION_MIN_SUPPORTED);
+      handshakeOk = (protocolVersion == LineColorProtocol::PROTOCOL_VERSION_CURRENT);
 
       break;
     //----------------------
     case READ_STATS:
-      remoteUptimeMs = readU32BE(&values[0]);
-      remoteRxCrcErrors = readU16BE(&values[4]);
-      remoteRxFrameErrors = readU16BE(&values[6]);
-      remoteRxUnknownCmd = readU16BE(&values[8]);
-      remoteTxResponses = readU16BE(&values[10]);
-      remoteQtrCalibrationCount = readU16BE(&values[12]);
-      remoteColorCalibrationCount = readU16BE(&values[14]);
-      remoteEepromWriteCount = readU16BE(&values[16]);
-      remoteLastEepromWriteMs = readU32BE(&values[18]);
-      remoteEepromUnlockRemainingMs = readU16BE(&values[22]);
+      remoteStats.uptimeMs = readU32BE(&values[0]);
+      remoteStats.rxCrcErrors = readU16BE(&values[4]);
+      remoteStats.rxFrameErrors = readU16BE(&values[6]);
+      remoteStats.rxUnknownCommands = readU16BE(&values[8]);
+      remoteStats.txResponses = readU16BE(&values[10]);
+      remoteStats.qtrCalibrationCount = readU16BE(&values[12]);
+      remoteStats.colorCalibrationCount = readU16BE(&values[14]);
+      remoteStats.eepromWriteCount = readU16BE(&values[16]);
+      remoteStats.lastEepromWriteMs = readU32BE(&values[18]);
+      remoteStats.eepromUnlockRemainingMs = readU16BE(&values[22]);
       break;
     //----------------------
     //----------------------
     case READ_CALIBRATION_MIN:
-//      expectedBytes = 17;  // Espera 17 bytes de resposta
-      for(int i=0; i<sensorCount; i++)
-        sensorCalibration.minimum[i] = values[i*2] << 8 | values[(i*2)+1];
-      for(int i=sensorCount; i<QTRMaxSensors; i++)
-        sensorCalibration.minimum[i] = 0;
-    
-    break;
+      break;
     //----------------------
     case READ_CALIBRATION_MAX:
-//      expectedBytes = 17;  // Espera 17 bytes de resposta
-      for(int i=0; i<sensorCount; i++)
-        sensorCalibration.maximum[i] = values[i*2] << 8 | values[(i*2)+1];
-      for(int i=sensorCount; i<QTRMaxSensors; i++)
-        sensorCalibration.maximum[i] = 0;
-    
-    break;
+      break;
     //----------------------
     case READ_POSITION:
       //expectedBytes = 3;  // Espera 3 bytes de resposta
@@ -646,25 +609,7 @@ bool ColorSensorI2C::isWriteCommand(uint8_t comando) const {
 // Entradas: `comando`.
 // Exemplo: `uint8_t n = sensor.expectedResponseLength(READ_STATS); // uso interno`
 uint8_t ColorSensorI2C::expectedResponseLength(uint8_t comando) const {
-  uint8_t countForSizing = sensorCount;
-
-  if (!handshakeOk) {
-    switch (comando) {
-      case READ_IR_CALIBRATED:
-      case READ_CALIBRATION_MIN:
-      case READ_CALIBRATION_MAX:
-      case READ_LINE_SNAPSHOT:
-      case READ_LINE_COLOR_SNAPSHOT:
-        // Compatibilidade: sem handshake, solicita tamanho máximo para não
-        // falhar se o escravo estiver com sensorCount diferente.
-        countForSizing = QTRMaxSensors;
-        break;
-      default:
-        break;
-    }
-  }
-
-  return LineColorProtocol::expectedResponseLength(comando, countForSizing);
+  return LineColorProtocol::expectedResponseLength(comando, sensorCount);
 }
 
 //==========================================================================
@@ -751,17 +696,13 @@ void ColorSensorI2C::syncThresholdIfNeeded() {
 // Exemplo: `sensor.handshake();`
 bool ColorSensorI2C::handshake() {
   handshakeOk = false;
-  capabilityFlags = 0;
 
   if (!enviarComando(READ_DEVICE_INFO, 50)) {
     nextHandshakeRetry = millis() + 250;
     return false;
   }
 
-  // Se o firmware remoto não entende o comando, enviarComando falha; se respondeu,
-  // os campos foram preenchidos em storeValues().
   if (!handshakeOk) {
-    capabilityFlags = 0;
     nextHandshakeRetry = millis() + 250;
     return false;
   }
@@ -868,27 +809,18 @@ unsigned long ColorSensorI2C::getLastSuccess() const{
 
 // Descricao: Verifica uma condicao/estado e retorna verdadeiro ou falso.
 // Entradas: sem parametros.
-// Exemplo: `bool ok = sensor.hasHandshake();`
-bool ColorSensorI2C::hasHandshake() const{
+// Exemplo: `bool ok = sensor.isConnected();`
+bool ColorSensorI2C::isConnected() const{
   return handshakeOk;
 }
 
 //==========================================================================
 
-// Descricao: Verifica uma condicao/estado e retorna verdadeiro ou falso.
+// Descricao: Retorna a versao do protocolo informada pelo escravo no handshake.
 // Entradas: sem parametros.
-// Exemplo: `bool ok = sensor.supportsLineSnapshot();`
-bool ColorSensorI2C::supportsLineSnapshot() const{
-  return (capabilityFlags & CAP_LINE_SNAPSHOT) != 0;
-}
-
-//==========================================================================
-
-// Descricao: Verifica uma condicao/estado e retorna verdadeiro ou falso.
-// Entradas: sem parametros.
-// Exemplo: `bool ok = sensor.supportsLineColorSnapshot();`
-bool ColorSensorI2C::supportsLineColorSnapshot() const{
-  return (capabilityFlags & CAP_LINE_COLOR_SNAPSHOT) != 0;
+// Exemplo: `uint8_t v = sensor.getProtocolVersion();`
+uint8_t ColorSensorI2C::getProtocolVersion() const{
+  return protocolVersion;
 }
 
 //==========================================================================
@@ -931,83 +863,11 @@ bool ColorSensorI2C::isStale() const{
 
 //==========================================================================
 
-// Descricao: Retorna o valor interno associado ao estado/telemetria deste objeto.
+// Descricao: Retorna a estrutura de estatisticas lidas do escravo.
 // Entradas: sem parametros.
-// Exemplo: `uint32_t caps = sensor.getCapabilities();`
-uint32_t ColorSensorI2C::getCapabilities() const{
-  return capabilityFlags;
-}
-
-//==========================================================================
-
-// Descricao: Retorna o valor interno associado ao estado/telemetria deste objeto.
-// Entradas: sem parametros.
-// Exemplo: `uint32_t up = sensor.getUptimeRemote();`
-uint32_t ColorSensorI2C::getUptimeRemote() const{
-  return remoteUptimeMs;
-}
-
-// Descricao: Retorna o valor interno associado ao estado/telemetria deste objeto.
-// Entradas: sem parametros.
-// Exemplo: `uint16_t n = sensor.getRxCrcErrorsRemote();`
-uint16_t ColorSensorI2C::getRxCrcErrorsRemote() const{
-  return remoteRxCrcErrors;
-}
-
-// Descricao: Retorna o valor interno associado ao estado/telemetria deste objeto.
-// Entradas: sem parametros.
-// Exemplo: `uint16_t n = sensor.getRxFrameErrorsRemote();`
-uint16_t ColorSensorI2C::getRxFrameErrorsRemote() const{
-  return remoteRxFrameErrors;
-}
-
-// Descricao: Retorna o valor interno associado ao estado/telemetria deste objeto.
-// Entradas: sem parametros.
-// Exemplo: `uint16_t n = sensor.getRxUnknownCmdRemote();`
-uint16_t ColorSensorI2C::getRxUnknownCmdRemote() const{
-  return remoteRxUnknownCmd;
-}
-
-// Descricao: Retorna o valor interno associado ao estado/telemetria deste objeto.
-// Entradas: sem parametros.
-// Exemplo: `uint16_t n = sensor.getTxResponsesRemote();`
-uint16_t ColorSensorI2C::getTxResponsesRemote() const{
-  return remoteTxResponses;
-}
-
-// Descricao: Retorna o valor interno associado ao estado/telemetria deste objeto.
-// Entradas: sem parametros.
-// Exemplo: `uint16_t n = sensor.getQtrCalibrationCountRemote();`
-uint16_t ColorSensorI2C::getQtrCalibrationCountRemote() const{
-  return remoteQtrCalibrationCount;
-}
-
-// Descricao: Retorna o valor interno associado ao estado/telemetria deste objeto.
-// Entradas: sem parametros.
-// Exemplo: `uint16_t n = sensor.getColorCalibrationCountRemote();`
-uint16_t ColorSensorI2C::getColorCalibrationCountRemote() const{
-  return remoteColorCalibrationCount;
-}
-
-// Descricao: Retorna o valor interno associado ao estado/telemetria deste objeto.
-// Entradas: sem parametros.
-// Exemplo: `uint16_t n = sensor.getEepromWriteCountRemote();`
-uint16_t ColorSensorI2C::getEepromWriteCountRemote() const{
-  return remoteEepromWriteCount;
-}
-
-// Descricao: Retorna o valor interno associado ao estado/telemetria deste objeto.
-// Entradas: sem parametros.
-// Exemplo: `uint32_t t = sensor.getLastEepromWriteMillisRemote();`
-uint32_t ColorSensorI2C::getLastEepromWriteMillisRemote() const{
-  return remoteLastEepromWriteMs;
-}
-
-// Descricao: Retorna o valor interno associado ao estado/telemetria deste objeto.
-// Entradas: sem parametros.
-// Exemplo: `uint16_t t = sensor.getEepromUnlockRemainingMsRemote();`
-uint16_t ColorSensorI2C::getEepromUnlockRemainingMsRemote() const{
-  return remoteEepromUnlockRemainingMs;
+// Exemplo: `const LineColorRemoteStats &stats = sensor.getStats();`
+const LineColorRemoteStats &ColorSensorI2C::getStats() const{
+  return remoteStats;
 }
 
 //==========================================================================
@@ -1029,17 +889,7 @@ uint16_t ColorSensorI2C::getSingleSensor(uint8_t sensor){
 // Entradas: sem parametros.
 // Exemplo: `bool online = sensor.onLine();`
 bool ColorSensorI2C::onLine(){
-  if (supportsLineSnapshot() || supportsLineColorSnapshot()) {
-    return (remoteStatusFlags & STATUS_ON_LINE) != 0;
-  }
-
-  if(linePosition == 0)
-    return false;
-  
-  if(linePosition == 1000*sensorCount-1000)
-    return false;
-
-  return true;
+  return (remoteStatusFlags & STATUS_ON_LINE) != 0;
 }
 
 //==========================================================================

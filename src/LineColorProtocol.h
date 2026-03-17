@@ -11,9 +11,8 @@ namespace LineColorProtocol {
 
 static constexpr uint8_t DEFAULT_SLAVE_ADDRESS = 0x04;
 static constexpr uint8_t MAX_FRAME_BUFFER = 33;
-static constexpr uint8_t MAX_BUFFER = MAX_FRAME_BUFFER; // legacy-friendly alias
+static constexpr uint8_t MAX_BUFFER = MAX_FRAME_BUFFER;
 
-static constexpr uint8_t PROTOCOL_VERSION_MIN_SUPPORTED = 0x01;
 static constexpr uint8_t PROTOCOL_VERSION_CURRENT = 0x03;
 
 static constexpr uint8_t CONTINUOUS = 0;
@@ -86,7 +85,13 @@ enum AckStatus : uint8_t {
 };
 
 // ---------------------------------------------------------------------------
-// Shared helpers
+// Helpers recomendados para sketches e blocos visuais
+// ---------------------------------------------------------------------------
+
+void printSensorBoolean(Stream &out, uint8_t sensorBoolean);
+
+// ---------------------------------------------------------------------------
+// Helpers de protocolo / uso avancado
 // ---------------------------------------------------------------------------
 
 uint8_t crc8(const uint8_t *data, uint8_t len);

@@ -11,25 +11,10 @@
 #include <LineColorProtocol.h>
 #endif
 
-
 //==========================================================================
 //                              GLOBAL DEFINES
 //==========================================================================
 
-// Define as cores
-//enum COLORS {
-//  _RED,
-//  _GREEN,
-//  _BLUE,
-//  _WHITE,
-//  _BLACK,
-//  _YELLOW,
-//  _SILVER,
-//  _NO_COLOR,
-//  _ERROR
-//};
-
-// Define as cores
 enum COLORS {
   _RED,
   _GREEN,
@@ -45,7 +30,7 @@ enum COLORS {
   _ERROR
 };
 
-// Compatibilidade com sketches antigos: tabela global indexada por enum de cor.
+// Tabela global indexada por enum de cor.
 extern const char * const colorStr[12];
 
 static constexpr uint8_t CONTINUOUS = LineColorProtocol::CONTINUOUS;
@@ -63,7 +48,7 @@ static constexpr uint8_t REQUEST = LineColorProtocol::REQUEST;
 //                              I2C VARIABLES
 //==========================================================================
 
-// Endereço I2C do escravo e aliases de compatibilidade da camada de protocolo
+// Endereço I2C do escravo e aliases de comandos da camada de protocolo
 static constexpr uint8_t SLAVE_ADDRESS = LineColorProtocol::DEFAULT_SLAVE_ADDRESS;
 
 static constexpr uint8_t READ_COLOR = LineColorProtocol::READ_COLOR;
@@ -84,15 +69,6 @@ static constexpr uint8_t READ_LINE_COLOR_SNAPSHOT = LineColorProtocol::READ_LINE
 static constexpr uint8_t READ_STATS = LineColorProtocol::READ_STATS;
 
 static constexpr uint8_t MAX_BUFFER = LineColorProtocol::MAX_BUFFER;
-static constexpr uint8_t PROTOCOL_VERSION_MIN_SUPPORTED = LineColorProtocol::PROTOCOL_VERSION_MIN_SUPPORTED;
-
-static constexpr uint32_t CAP_LINE_SNAPSHOT = LineColorProtocol::CAP_LINE_SNAPSHOT;
-static constexpr uint32_t CAP_DEVICE_INFO = LineColorProtocol::CAP_DEVICE_INFO;
-static constexpr uint32_t CAP_LINE_COLOR_SNAPSHOT = LineColorProtocol::CAP_LINE_COLOR_SNAPSHOT;
-static constexpr uint32_t CAP_READ_STATS = LineColorProtocol::CAP_READ_STATS;
-static constexpr uint32_t CAP_WRITE_ACK = LineColorProtocol::CAP_WRITE_ACK;
-static constexpr uint32_t CAP_EEPROM_UNLOCK = LineColorProtocol::CAP_EEPROM_UNLOCK;
-static constexpr uint32_t CAP_CRC8_SEQ = LineColorProtocol::CAP_CRC8_SEQ;
 
 static constexpr uint8_t STATUS_QTR_CALIBRATED = LineColorProtocol::STATUS_QTR_CALIBRATED;
 static constexpr uint8_t STATUS_ON_LINE = LineColorProtocol::STATUS_ON_LINE;
@@ -112,31 +88,23 @@ static constexpr uint8_t EEPROM_UNLOCK_KEY_2 = LineColorProtocol::EEPROM_UNLOCK_
 const uint8_t QTRMaxSensors = 8;
 
 
-struct CalibrationData
-{
-  // Lowest readings seen during calibration.
-  uint16_t minimum[QTRMaxSensors];
-  // Highest readings seen during calibration.
-  uint16_t maximum[QTRMaxSensors];
-};
-
 struct ColorData{
   uint8_t color;
   uint8_t rating;
-  unsigned int rawRGB[4];
 };
 
-
-//struct SensorData {
-//  ColorData direita;
-//  ColorData esquerda;
-//  CalibrationData sensorCalibration;
-//  uint16_t sensorValue[QTRMaxSensors];
-//  uint16_t linePosition;
-//  byte sensorBoolean;
-//  uint8_t sensorCount = 0;
-//  
-//};
+struct LineColorRemoteStats {
+  uint32_t uptimeMs;
+  uint16_t rxCrcErrors;
+  uint16_t rxFrameErrors;
+  uint16_t rxUnknownCommands;
+  uint16_t txResponses;
+  uint16_t qtrCalibrationCount;
+  uint16_t colorCalibrationCount;
+  uint16_t eepromWriteCount;
+  uint32_t lastEepromWriteMs;
+  uint16_t eepromUnlockRemainingMs;
+};
 
 
 class ColorSensorI2C {
@@ -154,15 +122,19 @@ class ColorSensorI2C {
     };
   
     ColorSensorI2C(uint8_t slaveAddress, TwoWire* wireInstance);
-    void begin(uint32_t clockHz = 100000UL);
-    bool enviarComando(uint8_t comando, unsigned long timeout = 500);
-    void setThreshold(uint16_t value);
-    bool handshake();
-    bool readStats();
-    bool readLineAndColor();
-    bool armEepromWrite();
 
-    //SensorData data;
+    // API basica / mais indicada para blocos
+    void begin(uint32_t clockHz = 100000UL);
+    bool handshake();
+    bool isConnected() const;
+    uint8_t getProtocolVersion() const;
+    void setThreshold(uint16_t value);
+    bool armEepromWrite();
+    void readLine();
+    void readColor();
+    bool readLineAndColor();
+    void lineCalibrate();
+    void colorCalibrate();
 
     uint8_t getColor(uint8_t lado);
     uint16_t getPosition();
@@ -171,36 +143,19 @@ class ColorSensorI2C {
     uint16_t getSingleSensor(uint8_t sensor);
     bool onLine();
     const char* getColorStr();
-    //void read();
-    void readColor();
-
-    void readLine();
-    void lineCalibrate();
-    void colorCalibrate();
-
     uint16_t getThreshold();
     uint8_t getLastError() const;
-    unsigned long getLastSuccess() const;
-    bool hasHandshake() const;
-    bool supportsLineSnapshot() const;
-    bool supportsLineColorSnapshot() const;
-    bool remoteQtrCalibrated() const;
-    uint8_t getLastAckStatus() const;
     void setStalenessTimeout(unsigned long timeoutMs);
     bool isStale() const;
-    uint32_t getCapabilities() const;
-    uint32_t getUptimeRemote() const;
-    uint16_t getRxCrcErrorsRemote() const;
-    uint16_t getRxFrameErrorsRemote() const;
-    uint16_t getRxUnknownCmdRemote() const;
-    uint16_t getTxResponsesRemote() const;
-    uint16_t getQtrCalibrationCountRemote() const;
-    uint16_t getColorCalibrationCountRemote() const;
-    uint16_t getEepromWriteCountRemote() const;
-    uint32_t getLastEepromWriteMillisRemote() const;
-    uint16_t getEepromUnlockRemainingMsRemote() const;
 
-    // Alias de compatibilidade para a tabela global `::colorStr`.
+    // API de diagnostico / uso avancado
+    bool enviarComando(uint8_t comando, unsigned long timeout = 500);
+    unsigned long getLastSuccess() const;
+    bool remoteQtrCalibrated() const;
+    uint8_t getLastAckStatus() const;
+    bool readStats();
+    const LineColorRemoteStats &getStats() const;
+
     static const char * const * colorStr;
 
   private:
@@ -220,10 +175,8 @@ class ColorSensorI2C {
     uint16_t readU16BE(const uint8_t *data) const;
     uint32_t readU32BE(const uint8_t *data) const;
 
-
-    ColorData direita = {_ERROR, 0, {0, 0, 0, 0}};
-    ColorData esquerda = {_ERROR, 0, {0, 0, 0, 0}};
-    CalibrationData sensorCalibration = {};
+    ColorData direita = {_ERROR, 0};
+    ColorData esquerda = {_ERROR, 0};
     uint16_t sensorValue[QTRMaxSensors] = {0};
     uint16_t sensorValueRAW[QTRMaxSensors] = {0};
     uint16_t linePosition = 0;
@@ -233,8 +186,6 @@ class ColorSensorI2C {
     
     uint16_t threshold = 500;
     uint8_t protocolVersion = 0;
-    uint32_t capabilityFlags = 0;
-    uint8_t remoteMode = CONTINUOUS;
     uint8_t remoteStatusFlags = 0;
     bool handshakeOk = false;
     uint8_t lastError = COMM_OK;
@@ -245,16 +196,7 @@ class ColorSensorI2C {
     uint8_t lastAckStatus = ACK_OK;
     unsigned long stalenessTimeoutMs = 500;
     
-    uint32_t remoteUptimeMs = 0;
-    uint16_t remoteRxCrcErrors = 0;
-    uint16_t remoteRxFrameErrors = 0;
-    uint16_t remoteRxUnknownCmd = 0;
-    uint16_t remoteTxResponses = 0;
-    uint16_t remoteQtrCalibrationCount = 0;
-    uint16_t remoteColorCalibrationCount = 0;
-    uint16_t remoteEepromWriteCount = 0;
-    uint32_t remoteLastEepromWriteMs = 0;
-    uint16_t remoteEepromUnlockRemainingMs = 0;
+    LineColorRemoteStats remoteStats = {};
     
     uint8_t _slaveAddress;
     TwoWire* wire; // Ponteiro para o objeto Wire/I2C

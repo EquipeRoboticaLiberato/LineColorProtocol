@@ -46,7 +46,9 @@ void setup() {
   Serial.print(F("sensorCount=")); Serial.println(parsedCount);
   Serial.print(F("flags=0x")); Serial.println(flags, HEX);
   Serial.print(F("pos=")); Serial.println(pos);
-  Serial.print(F("boolean=0b")); Serial.println(bits, BIN);
+  Serial.print(F("boolean=0b"));
+  printSensorBoolean(Serial, bits);
+  Serial.println();
 
   for (uint8_t i = 0; i < parsedCount; i++) {
     uint8_t idx = 5 + (i * 2);

@@ -2,8 +2,20 @@
 
 namespace LineColorProtocol {
 
+// Descricao: Imprime o byte booleano do sensor sempre com 8 caracteres fixos.
+// Entradas: `out`, `sensorBoolean`.
+// Quando usar: quando quiser mostrar no Serial/Display o mapa booleano sem deslocar as colunas.
+// Exemplo: `LineColorProtocol::printSensorBoolean(Serial, sensor.getBoolean());`
+void printSensorBoolean(Stream &out, uint8_t sensorBoolean)
+{
+  for (uint8_t i = 0; i < 8; i++) {
+    out.print(bitRead(sensorBoolean, i) ? '1' : '0');
+  }
+}
+
 // Descricao: Calcula o CRC-8 (polinomio 0x07) de um buffer.
 // Entradas: `data`, `len`.
+// Quando usar: quando estiver montando ou validando manualmente um frame do protocolo.
 // Exemplo: `uint8_t c = LineColorProtocol::crc8(buf, len);`
 uint8_t crc8(const uint8_t *data, uint8_t len)
 {
@@ -23,6 +35,7 @@ uint8_t crc8(const uint8_t *data, uint8_t len)
 
 // Descricao: Confere se o ultimo byte do frame bate com o CRC-8 calculado.
 // Entradas: `data`, `len`.
+// Quando usar: ao receber um frame bruto e precisar verificar se ele chegou integro.
 // Exemplo: `bool ok = LineColorProtocol::frameCRCValid(frame, frameLen);`
 bool frameCRCValid(const uint8_t *data, uint8_t len)
 {
@@ -32,6 +45,7 @@ bool frameCRCValid(const uint8_t *data, uint8_t len)
 
 // Descricao: Calcula e adiciona o CRC-8 no final do frame.
 // Entradas: `data`, `len`.
+// Quando usar: no fim da montagem de qualquer request/response do protocolo.
 // Exemplo: `LineColorProtocol::appendCRC(frame, frameLen);`
 void appendCRC(uint8_t *data, uint8_t &len)
 {
@@ -42,6 +56,7 @@ void appendCRC(uint8_t *data, uint8_t &len)
 
 // Descricao: Adiciona um valor de 16 bits em formato big-endian no buffer.
 // Entradas: `data`, `len`, `value`.
+// Quando usar: ao serializar campos de 16 bits em requests/responses do protocolo.
 // Exemplo: `LineColorProtocol::appendU16BE(frame, frameLen, 950);`
 void appendU16BE(uint8_t *data, uint8_t &len, uint16_t value)
 {
@@ -51,6 +66,7 @@ void appendU16BE(uint8_t *data, uint8_t &len, uint16_t value)
 
 // Descricao: Adiciona um valor de 32 bits em formato big-endian no buffer.
 // Entradas: `data`, `len`, `value`.
+// Quando usar: ao serializar tempos, contadores ou mascaras de 32 bits.
 // Exemplo: `LineColorProtocol::appendU32BE(frame, frameLen, 123456UL);`
 void appendU32BE(uint8_t *data, uint8_t &len, uint32_t value)
 {
@@ -62,6 +78,7 @@ void appendU32BE(uint8_t *data, uint8_t &len, uint32_t value)
 
 // Descricao: Le um inteiro de 16 bits em formato big-endian a partir de um buffer.
 // Entradas: `data`.
+// Quando usar: ao interpretar payloads recebidos com campos de 16 bits.
 // Exemplo: `uint16_t v = LineColorProtocol::readU16BE(&frame[0]);`
 uint16_t readU16BE(const uint8_t *data)
 {
@@ -70,6 +87,7 @@ uint16_t readU16BE(const uint8_t *data)
 
 // Descricao: Le um inteiro de 32 bits em formato big-endian a partir de um buffer.
 // Entradas: `data`.
+// Quando usar: ao interpretar payloads recebidos com tempos ou contadores de 32 bits.
 // Exemplo: `uint32_t v = LineColorProtocol::readU32BE(&frame[0]);`
 uint32_t readU32BE(const uint8_t *data)
 {
@@ -81,6 +99,7 @@ uint32_t readU32BE(const uint8_t *data)
 
 // Descricao: Verifica se o comando pertence ao grupo de escrita/configuracao.
 // Entradas: `command`.
+// Quando usar: para diferenciar comandos que devem retornar ACK dos comandos de leitura.
 // Exemplo: `bool wr = LineColorProtocol::isWriteCommand(LineColorProtocol::SET_THRESHOLD);`
 bool isWriteCommand(uint8_t command)
 {
@@ -98,6 +117,7 @@ bool isWriteCommand(uint8_t command)
 
 // Descricao: Verifica se o comando pertence ao grupo de leitura.
 // Entradas: `command`.
+// Quando usar: para classificar rapidamente um comando recebido no parser do protocolo.
 // Exemplo: `bool rd = LineColorProtocol::isReadCommand(LineColorProtocol::READ_STATS);`
 bool isReadCommand(uint8_t command)
 {
@@ -121,6 +141,7 @@ bool isReadCommand(uint8_t command)
 
 // Descricao: Verifica se o comando existe no protocolo conhecido.
 // Entradas: `command`.
+// Quando usar: para validar comandos antes de processar ou registrar diagnosticos.
 // Exemplo: `bool known = LineColorProtocol::isKnownCommand(cmd);`
 bool isKnownCommand(uint8_t command)
 {
@@ -129,6 +150,7 @@ bool isKnownCommand(uint8_t command)
 
 // Descricao: Indica se o comando exige atualizar o snapshot no modo REQUEST.
 // Entradas: `command`.
+// Quando usar: no escravo, para decidir se precisa refrescar leituras antes de responder.
 // Exemplo: `bool refresh = LineColorProtocol::requiresRefreshInRequestMode(LineColorProtocol::READ_LINE_SNAPSHOT);`
 bool requiresRefreshInRequestMode(uint8_t command)
 {
@@ -148,6 +170,7 @@ bool requiresRefreshInRequestMode(uint8_t command)
 
 // Descricao: Retorna o tamanho esperado da resposta para um comando e quantidade de sensores.
 // Entradas: `command`, `sensorCount`.
+// Quando usar: ao reservar buffers ou validar frames antes de parsear.
 // Exemplo: `uint8_t n = LineColorProtocol::expectedResponseLength(LineColorProtocol::READ_STATS, 6);`
 uint8_t expectedResponseLength(uint8_t command, uint8_t sensorCount)
 {
@@ -176,6 +199,7 @@ uint8_t expectedResponseLength(uint8_t command, uint8_t sensorCount)
 
 // Descricao: Monta a mascara de status do protocolo a partir dos estados do sensor.
 // Entradas: `qtrCalibrated`, `onLine`.
+// Quando usar: no escravo, para publicar estado resumido nos snapshots e no device info.
 // Exemplo: `uint8_t flags = LineColorProtocol::protocolStatusFlags(true, false);`
 uint8_t protocolStatusFlags(bool qtrCalibrated, bool onLine)
 {
@@ -187,6 +211,7 @@ uint8_t protocolStatusFlags(bool qtrCalibrated, bool onLine)
 
 // Descricao: Retorna o nome textual de um comando do protocolo.
 // Entradas: `command`.
+// Quando usar: em logs, menus seriais ou telas de diagnostico.
 // Exemplo: `const char *name = LineColorProtocol::commandName(LineColorProtocol::READ_COLOR);`
 const char *commandName(uint8_t command)
 {
@@ -213,6 +238,7 @@ const char *commandName(uint8_t command)
 
 // Descricao: Retorna o nome textual de um codigo ACK do protocolo.
 // Entradas: `status`.
+// Quando usar: para mostrar no Serial o significado de um ACK sem consultar a tabela manualmente.
 // Exemplo: `const char *name = LineColorProtocol::ackStatusName(LineColorProtocol::ACK_OK);`
 const char *ackStatusName(uint8_t status)
 {

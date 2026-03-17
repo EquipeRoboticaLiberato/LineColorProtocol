@@ -33,9 +33,6 @@ enum COLORS {
 // Tabela global indexada por enum de cor.
 extern const char * const colorStr[12];
 
-static constexpr uint8_t CONTINUOUS = LineColorProtocol::CONTINUOUS;
-static constexpr uint8_t REQUEST = LineColorProtocol::REQUEST;
-
 #ifndef DIREITA
   #define DIREITA   0
 #endif
@@ -53,15 +50,10 @@ static constexpr uint8_t SLAVE_ADDRESS = LineColorProtocol::DEFAULT_SLAVE_ADDRES
 
 static constexpr uint8_t READ_COLOR = LineColorProtocol::READ_COLOR;
 static constexpr uint8_t READ_RAW_RGBW = LineColorProtocol::READ_RAW_RGBW;
-static constexpr uint8_t READ_POSITION = LineColorProtocol::READ_POSITION;
-static constexpr uint8_t SET_MODE = LineColorProtocol::SET_MODE;
-static constexpr uint8_t READ_IR_BOOLEAN = LineColorProtocol::READ_IR_BOOLEAN;
+static constexpr uint8_t READ_IR_RAW = LineColorProtocol::READ_IR_RAW;
 static constexpr uint8_t SET_THRESHOLD = LineColorProtocol::SET_THRESHOLD;
-static constexpr uint8_t READ_CALIBRATION_MIN = LineColorProtocol::READ_CALIBRATION_MIN;
-static constexpr uint8_t READ_CALIBRATION_MAX = LineColorProtocol::READ_CALIBRATION_MAX;
 static constexpr uint8_t QTR_CALIBRATE = LineColorProtocol::QTR_CALIBRATE;
 static constexpr uint8_t CALIBRATE_COLOR = LineColorProtocol::CALIBRATE_COLOR;
-static constexpr uint8_t READ_IR_CALIBRATED = LineColorProtocol::READ_IR_CALIBRATED;
 static constexpr uint8_t READ_LINE_SNAPSHOT = LineColorProtocol::READ_LINE_SNAPSHOT;
 static constexpr uint8_t READ_DEVICE_INFO = LineColorProtocol::READ_DEVICE_INFO;
 static constexpr uint8_t ARM_EEPROM_WRITE = LineColorProtocol::ARM_EEPROM_WRITE;
@@ -91,6 +83,7 @@ const uint8_t QTRMaxSensors = 8;
 struct ColorData{
   uint8_t color;
   uint8_t rating;
+  uint16_t rawRGB[4];
 };
 
 struct LineColorRemoteStats {
@@ -131,7 +124,9 @@ class ColorSensorI2C {
     void setThreshold(uint16_t value);
     bool armEepromWrite();
     void readLine();
+    void readLineRaw();
     void readColor();
+    void readColorRaw();
     bool readLineAndColor();
     void lineCalibrate();
     void colorCalibrate();
@@ -141,6 +136,8 @@ class ColorSensorI2C {
     byte getBoolean();
     uint8_t getSensorCount();
     uint16_t getSingleSensor(uint8_t sensor);
+    uint16_t getSingleSensorRaw(uint8_t sensor);
+    uint16_t getRawRGBW(uint8_t lado, uint8_t channel);
     bool onLine();
     const char* getColorStr();
     uint16_t getThreshold();
@@ -175,8 +172,8 @@ class ColorSensorI2C {
     uint16_t readU16BE(const uint8_t *data) const;
     uint32_t readU32BE(const uint8_t *data) const;
 
-    ColorData direita = {_ERROR, 0};
-    ColorData esquerda = {_ERROR, 0};
+    ColorData direita = {_ERROR, 0, {0, 0, 0, 0}};
+    ColorData esquerda = {_ERROR, 0, {0, 0, 0, 0}};
     uint16_t sensorValue[QTRMaxSensors] = {0};
     uint16_t sensorValueRAW[QTRMaxSensors] = {0};
     uint16_t linePosition = 0;

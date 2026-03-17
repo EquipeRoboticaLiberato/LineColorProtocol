@@ -69,6 +69,19 @@ void ColorSensorI2C::readLine(){
 
 //==========================================================================
 
+// Descricao: Le os valores crus do QTR, sem aplicar calibracao.
+// Entradas: sem parametros.
+// Exemplo: `sensor.readLineRaw();`
+void ColorSensorI2C::readLineRaw(){
+
+  tryHandshakeIfNeeded();
+  syncThresholdIfNeeded();
+  enviarComando(READ_IR_RAW);
+
+}
+
+//==========================================================================
+
 // Descricao: Le linha e cor em uma unica chamada usando o snapshot combinado atual.
 // Entradas: sem parametros.
 // Exemplo: `sensor.readLineAndColor();`
@@ -91,6 +104,19 @@ void ColorSensorI2C::readColor(){
   syncThresholdIfNeeded();
 
   enviarComando(READ_COLOR);
+
+}
+
+//==========================================================================
+
+// Descricao: Le os valores crus RGBW dos sensores de cor.
+// Entradas: sem parametros.
+// Exemplo: `sensor.readColorRaw();`
+void ColorSensorI2C::readColorRaw(){
+
+  tryHandshakeIfNeeded();
+  syncThresholdIfNeeded();
+  enviarComando(READ_RAW_RGBW);
 
 }
 
@@ -131,10 +157,6 @@ bool ColorSensorI2C::enviarComando(uint8_t comando, unsigned long timeout) {
   frame[frameLen++] = seq;
 
   switch (comando) {
-    case SET_MODE:
-      frame[frameLen++] = REQUEST;
-      break;
-
     case SET_THRESHOLD:
       frame[frameLen++] = (uint8_t)(threshold >> 8);
       frame[frameLen++] = (uint8_t)(threshold & 0xFF);
@@ -149,11 +171,7 @@ bool ColorSensorI2C::enviarComando(uint8_t comando, unsigned long timeout) {
     case CALIBRATE_COLOR:
     case READ_COLOR:
     case READ_RAW_RGBW:
-    case READ_POSITION:
-    case READ_IR_BOOLEAN:
-    case READ_IR_CALIBRATED:
-    case READ_CALIBRATION_MIN:
-    case READ_CALIBRATION_MAX:
+    case READ_IR_RAW:
     case READ_LINE_SNAPSHOT:
     case READ_DEVICE_INFO:
     case READ_LINE_COLOR_SNAPSHOT:
@@ -298,20 +316,6 @@ bool ColorSensorI2C::solicitarDados(uint8_t comando, uint8_t quantidade, unsigne
       }
       break;
 
-    case READ_POSITION:
-      if (payloadLen != 2) {
-        setCommError(COMM_ERR_INVALID_SIZE);
-        return false;
-      }
-      break;
-
-    case READ_IR_BOOLEAN:
-      if (payloadLen != 1) {
-        setCommError(COMM_ERR_INVALID_SIZE);
-        return false;
-      }
-      break;
-
     case READ_DEVICE_INFO:
       if (payloadLen != 8) {
         setCommError(COMM_ERR_INVALID_SIZE);
@@ -326,9 +330,7 @@ bool ColorSensorI2C::solicitarDados(uint8_t comando, uint8_t quantidade, unsigne
       }
       break;
 
-    case READ_IR_CALIBRATED:
-    case READ_CALIBRATION_MIN:
-    case READ_CALIBRATION_MAX:
+    case READ_IR_RAW:
       if (payloadLen == 0 || (payloadLen & 0x01) != 0) {
         setCommError(COMM_ERR_INVALID_SIZE);
         return false;
@@ -400,33 +402,21 @@ void ColorSensorI2C::storeValues(byte *values, uint8_t comando) {
       break;
     //----------------------
     case READ_RAW_RGBW:
-      // Mantido apenas para validacao do frame; a biblioteca nao armazena
-      // mais os canais crus para economizar RAM no mestre.
+      for(int i = 0; i <= _WHITE; i++)
+        direita.rawRGB[i] = values[i * 2] << 8 | values[(i * 2) + 1];
+
+      for(int i = 0; i <= _WHITE; i++)
+        esquerda.rawRGB[i] = values[(i * 2) + 8] << 8 | values[(i * 2) + 9];
+
       break;
     //----------------------
-//    case READ_IR_RAW:
-////      expectedBytes = 17;  // Espera 17 bytes de resposta
-//      
-//      for(int i=0; i < sensorCount; i++)
-//        sensorValueRAW[i] = values[i*2] << 8 | values[(i*2)+1];
-//
-//      break;
-    //----------------------
-    case READ_IR_CALIBRATED:
-//      expectedBytes = 17;  // Espera 17 bytes de resposta
-      //sensorBoolean = 0;
-      
+    case READ_IR_RAW:
       for(int i=0; i < sensorCount; i++){
-        sensorValue[i] = values[i*2] << 8 | values[(i*2)+1];
-        //if(sensorValue[i] >= threshold)
-        //  bitSet(sensorBoolean, i);
+        sensorValueRAW[i] = values[i*2] << 8 | values[(i*2)+1];
       }
       for(int i=sensorCount; i < QTRMaxSensors; i++){
-        sensorValue[i] = 0;
+        sensorValueRAW[i] = 0;
       }
-
-      //sensorBoolean = adjustBoolean(sensorBoolean, sensorCount);
-
       break;
     //----------------------
     case READ_LINE_SNAPSHOT:
@@ -512,25 +502,6 @@ void ColorSensorI2C::storeValues(byte *values, uint8_t comando) {
       remoteStats.lastEepromWriteMs = readU32BE(&values[18]);
       remoteStats.eepromUnlockRemainingMs = readU16BE(&values[22]);
       break;
-    //----------------------
-    //----------------------
-    case READ_CALIBRATION_MIN:
-      break;
-    //----------------------
-    case READ_CALIBRATION_MAX:
-      break;
-    //----------------------
-    case READ_POSITION:
-      //expectedBytes = 3;  // Espera 3 bytes de resposta
-      linePosition = values[0] << 8 | values[1];
-    break;
-    //----------------------
-    case READ_IR_BOOLEAN:
-      //expectedBytes = 2;  // Espera 2 bytes de resposta
-      //sensorBoolean = values[0];
-      sensorBoolean = adjustBoolean(values[0], sensorCount);
-
-    break;
     //----------------------
     default:
       LCP_LOG_PRINTLN(F("Nao foi possivel armazenar"));
@@ -880,7 +851,34 @@ uint16_t ColorSensorI2C::getSingleSensor(uint8_t sensor){
     return 0;
   else
     return sensorValue[sensor];
-    //return sensorValueRAW[sensor];
+}
+
+//==========================================================================
+
+// Descricao: Retorna o valor cru do sensor QTR indicado.
+// Entradas: `sensor`.
+// Exemplo: `uint16_t v = sensor.getSingleSensorRaw(0);`
+uint16_t ColorSensorI2C::getSingleSensorRaw(uint8_t sensor){
+  if(sensor >= QTRMaxSensors)
+    return 0;
+  else
+    return sensorValueRAW[sensor];
+}
+
+//==========================================================================
+
+// Descricao: Retorna o canal RGBW cru do sensor de cor indicado.
+// Entradas: `lado`, `channel`.
+// Exemplo: `uint16_t w = sensor.getRawRGBW(DIREITA, _WHITE);`
+uint16_t ColorSensorI2C::getRawRGBW(uint8_t lado, uint8_t channel){
+  if (channel > _WHITE) return 0;
+
+  if(lado == DIREITA)
+    return direita.rawRGB[channel];
+  else if(lado == ESQUERDA)
+    return esquerda.rawRGB[channel];
+  else
+    return 0;
 }
 
 //==========================================================================

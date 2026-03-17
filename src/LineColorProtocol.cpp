@@ -104,7 +104,6 @@ uint32_t readU32BE(const uint8_t *data)
 bool isWriteCommand(uint8_t command)
 {
   switch (command) {
-    case SET_MODE:
     case SET_THRESHOLD:
     case QTR_CALIBRATE:
     case CALIBRATE_COLOR:
@@ -124,11 +123,7 @@ bool isReadCommand(uint8_t command)
   switch (command) {
     case READ_COLOR:
     case READ_RAW_RGBW:
-    case READ_POSITION:
-    case READ_IR_BOOLEAN:
-    case READ_CALIBRATION_MIN:
-    case READ_CALIBRATION_MAX:
-    case READ_IR_CALIBRATED:
+    case READ_IR_RAW:
     case READ_LINE_SNAPSHOT:
     case READ_DEVICE_INFO:
     case READ_LINE_COLOR_SNAPSHOT:
@@ -148,26 +143,6 @@ bool isKnownCommand(uint8_t command)
   return isReadCommand(command) || isWriteCommand(command);
 }
 
-// Descricao: Indica se o comando exige atualizar o snapshot no modo REQUEST.
-// Entradas: `command`.
-// Quando usar: no escravo, para decidir se precisa refrescar leituras antes de responder.
-// Exemplo: `bool refresh = LineColorProtocol::requiresRefreshInRequestMode(LineColorProtocol::READ_LINE_SNAPSHOT);`
-bool requiresRefreshInRequestMode(uint8_t command)
-{
-  switch (command) {
-    case READ_COLOR:
-    case READ_RAW_RGBW:
-    case READ_POSITION:
-    case READ_IR_BOOLEAN:
-    case READ_IR_CALIBRATED:
-    case READ_LINE_SNAPSHOT:
-    case READ_LINE_COLOR_SNAPSHOT:
-      return true;
-    default:
-      return false;
-  }
-}
-
 // Descricao: Retorna o tamanho esperado da resposta para um comando e quantidade de sensores.
 // Entradas: `command`, `sensorCount`.
 // Quando usar: ao reservar buffers ou validar frames antes de parsear.
@@ -179,16 +154,11 @@ uint8_t expectedResponseLength(uint8_t command, uint8_t sensorCount)
   switch (command) {
     case READ_COLOR:               return 6;                              // seq + 4 payload + crc
     case READ_RAW_RGBW:            return 18;                             // seq + 16 payload + crc
-    case READ_POSITION:            return 4;                              // seq + 2 payload + crc
-    case READ_IR_BOOLEAN:          return 3;                              // seq + 1 payload + crc
-    case READ_IR_CALIBRATED:       return (uint8_t)(sensorCount * 2 + 2); // seq + N*2 + crc
-    case READ_CALIBRATION_MIN:     return (uint8_t)(sensorCount * 2 + 2);
-    case READ_CALIBRATION_MAX:     return (uint8_t)(sensorCount * 2 + 2);
+    case READ_IR_RAW:              return (uint8_t)(sensorCount * 2 + 2); // seq + N*2 + crc
     case READ_LINE_SNAPSHOT:       return (uint8_t)(sensorCount * 2 + 7);  // seq + (1+1+2+1+N*2) + crc
     case READ_LINE_COLOR_SNAPSHOT: return (uint8_t)(sensorCount * 2 + 11); // seq + line + colors(4) + crc
     case READ_DEVICE_INFO:         return 10;                              // seq + 8 payload + crc
     case READ_STATS:               return 26;                              // seq + 24 payload + crc
-    case SET_MODE:
     case SET_THRESHOLD:
     case QTR_CALIBRATE:
     case CALIBRATE_COLOR:
@@ -218,15 +188,10 @@ const char *commandName(uint8_t command)
   switch (command) {
     case READ_COLOR: return "READ_COLOR";
     case READ_RAW_RGBW: return "READ_RAW_RGBW";
-    case READ_POSITION: return "READ_POSITION";
-    case SET_MODE: return "SET_MODE";
-    case READ_IR_BOOLEAN: return "READ_IR_BOOLEAN";
+    case READ_IR_RAW: return "READ_IR_RAW";
     case SET_THRESHOLD: return "SET_THRESHOLD";
-    case READ_CALIBRATION_MIN: return "READ_CALIBRATION_MIN";
-    case READ_CALIBRATION_MAX: return "READ_CALIBRATION_MAX";
     case QTR_CALIBRATE: return "QTR_CALIBRATE";
     case CALIBRATE_COLOR: return "CALIBRATE_COLOR";
-    case READ_IR_CALIBRATED: return "READ_IR_CALIBRATED";
     case READ_LINE_SNAPSHOT: return "READ_LINE_SNAPSHOT";
     case READ_DEVICE_INFO: return "READ_DEVICE_INFO";
     case ARM_EEPROM_WRITE: return "ARM_EEPROM_WRITE";

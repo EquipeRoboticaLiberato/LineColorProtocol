@@ -16,7 +16,6 @@ static constexpr uint8_t MAX_BUFFER = MAX_FRAME_BUFFER;
 static constexpr uint8_t PROTOCOL_VERSION_CURRENT = 0x03;
 
 static constexpr uint8_t CONTINUOUS = 0;
-static constexpr uint8_t REQUEST = 1;
 
 static constexpr uint8_t EEPROM_UNLOCK_KEY_1 = 0xA5;
 static constexpr uint8_t EEPROM_UNLOCK_KEY_2 = 0x5A;
@@ -29,16 +28,10 @@ static constexpr unsigned long EEPROM_UNLOCK_WINDOW_MS = 20000UL;
 enum Command : uint8_t {
   READ_COLOR = 0x01,
   READ_RAW_RGBW = 0x02,
-  READ_POSITION = 0x03,
-  // 0x04 reserved (legacy READ_IR_RAW)
-  SET_MODE = 0x05,
-  READ_IR_BOOLEAN = 0x06,
+  READ_IR_RAW = 0x04,
   SET_THRESHOLD = 0x07,
-  READ_CALIBRATION_MIN = 0x08,
-  READ_CALIBRATION_MAX = 0x09,
   QTR_CALIBRATE = 0x0A,
   CALIBRATE_COLOR = 0x0B,
-  READ_IR_CALIBRATED = 0x0C,
   READ_LINE_SNAPSHOT = 0x0D,
   READ_DEVICE_INFO = 0x0E,
   ARM_EEPROM_WRITE = 0x0F,
@@ -105,8 +98,6 @@ uint32_t readU32BE(const uint8_t *data);
 bool isWriteCommand(uint8_t command);
 bool isReadCommand(uint8_t command);
 bool isKnownCommand(uint8_t command);
-bool requiresRefreshInRequestMode(uint8_t command);
-
 uint8_t expectedResponseLength(uint8_t command, uint8_t sensorCount);
 uint8_t protocolStatusFlags(bool qtrCalibrated, bool onLine);
 

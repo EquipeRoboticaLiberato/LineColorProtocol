@@ -14,18 +14,24 @@ void setup() {
   const uint8_t sensorCount = 6;
   Serial.print(F("Resp len READ_STATS: "));
   Serial.println(expectedResponseLength(READ_STATS, sensorCount));
+  Serial.print(F("Resp len READ_IR_RAW: "));
+  Serial.println(expectedResponseLength(READ_IR_RAW, sensorCount));
   Serial.print(F("Resp len READ_LINE_SNAPSHOT: "));
   Serial.println(expectedResponseLength(READ_LINE_SNAPSHOT, sensorCount));
+  Serial.print(F("Resp len READ_LINE_COLOR_SNAPSHOT: "));
+  Serial.println(expectedResponseLength(READ_LINE_COLOR_SNAPSHOT, sensorCount));
 
-  Serial.println(F("Comandos que exigem refresh em modo REQUEST:"));
+  Serial.println(F("Classificacao dos comandos atuais:"));
   const uint8_t cmds[] = {
-    READ_COLOR, READ_POSITION, READ_DEVICE_INFO, READ_STATS, READ_LINE_COLOR_SNAPSHOT
+    READ_COLOR, READ_RAW_RGBW, READ_IR_RAW, READ_DEVICE_INFO, READ_STATS, READ_LINE_COLOR_SNAPSHOT
   };
   for (uint8_t i = 0; i < sizeof(cmds); i++) {
     Serial.print(F("- "));
     Serial.print(commandName(cmds[i]));
-    Serial.print(F(": "));
-    Serial.println(requiresRefreshInRequestMode(cmds[i]) ? F("SIM") : F("NAO"));
+    Serial.print(F(": read="));
+    Serial.print(isReadCommand(cmds[i]) ? F("SIM") : F("NAO"));
+    Serial.print(F(" write="));
+    Serial.println(isWriteCommand(cmds[i]) ? F("SIM") : F("NAO"));
   }
 
   uint8_t statsFrame[MAX_FRAME_BUFFER] = {0};

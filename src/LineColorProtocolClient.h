@@ -125,7 +125,6 @@ class ColorSensorI2C {
     // API basica / mais indicada para blocos
     void begin(uint32_t clockHz = 100000UL);
     ConnectionStatus status();
-    uint8_t getProtocolVersion() const;
     void setThreshold(uint16_t value);
     bool armEepromWrite();
     void readLine();
@@ -155,6 +154,7 @@ class ColorSensorI2C {
     bool remoteQtrCalibrated() const;
     uint8_t getLastAckStatus() const;
     bool readStats();
+    uint8_t getProtocolVersion() const;
     const LineColorRemoteStats &getStats() const;
 
     static const char * const * colorStr;

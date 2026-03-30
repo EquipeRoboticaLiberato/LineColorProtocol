@@ -664,7 +664,7 @@ void ColorSensorI2C::syncThresholdIfNeeded() {
 
 // Descricao: Solicita informacoes do dispositivo remoto e valida compatibilidade de protocolo.
 // Entradas: sem parametros.
-// Exemplo: `sensor.handshake();`
+// Exemplo: `handshake(); // uso interno`
 bool ColorSensorI2C::handshake() {
   handshakeOk = false;
 
@@ -778,15 +778,6 @@ unsigned long ColorSensorI2C::getLastSuccess() const{
 
 //==========================================================================
 
-// Descricao: Verifica uma condicao/estado e retorna verdadeiro ou falso.
-// Entradas: sem parametros.
-// Exemplo: `bool ok = sensor.isConnected();`
-bool ColorSensorI2C::isConnected() const{
-  return handshakeOk;
-}
-
-//==========================================================================
-
 // Descricao: Retorna a versao do protocolo informada pelo escravo no handshake.
 // Entradas: sem parametros.
 // Exemplo: `uint8_t v = sensor.getProtocolVersion();`
@@ -823,13 +814,25 @@ void ColorSensorI2C::setStalenessTimeout(unsigned long timeoutMs){
 
 //==========================================================================
 
-// Descricao: Verifica uma condicao/estado e retorna verdadeiro ou falso.
+// Descricao: Verifica se uma conexao antes valida ficou tempo demais sem sucesso recente.
 // Entradas: sem parametros.
-// Exemplo: `bool stale = sensor.isStale();`
-bool ColorSensorI2C::isStale() const{
+// Exemplo: `bool lost = hasLostConnection(); // uso interno`
+bool ColorSensorI2C::hasLostConnection() const{
   if (lastSuccess == 0) return false;
   if (lastError == COMM_OK) return false;
   return (millis() - lastSuccess) > stalenessTimeoutMs;
+}
+
+//==========================================================================
+
+// Descricao: Retorna o estado resumido da conexao com o modulo remoto.
+// Entradas: sem parametros.
+// Exemplo: `if (sensor.status() == ColorSensorI2C::CONNECTED) { ... }`
+ColorSensorI2C::ConnectionStatus ColorSensorI2C::status(){
+  tryHandshakeIfNeeded();
+  if (!handshakeOk) return DISCONNECTED;
+  if (hasLostConnection()) return LOST_CONNECTION;
+  return CONNECTED;
 }
 
 //==========================================================================

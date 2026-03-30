@@ -113,13 +113,18 @@ class ColorSensorI2C {
       COMM_ERR_SEQ_MISMATCH,
       COMM_ERR_REMOTE_ACK
     };
+
+    enum ConnectionStatus : uint8_t {
+      DISCONNECTED = 0,
+      CONNECTED,
+      LOST_CONNECTION
+    };
   
     ColorSensorI2C(uint8_t slaveAddress, TwoWire* wireInstance);
 
     // API basica / mais indicada para blocos
     void begin(uint32_t clockHz = 100000UL);
-    bool handshake();
-    bool isConnected() const;
+    ConnectionStatus status();
     uint8_t getProtocolVersion() const;
     void setThreshold(uint16_t value);
     bool armEepromWrite();
@@ -143,7 +148,6 @@ class ColorSensorI2C {
     uint16_t getThreshold();
     uint8_t getLastError() const;
     void setStalenessTimeout(unsigned long timeoutMs);
-    bool isStale() const;
 
     // API de diagnostico / uso avancado
     bool enviarComando(uint8_t comando, unsigned long timeout = 500);
@@ -165,6 +169,8 @@ class ColorSensorI2C {
     void setCommSuccess();
     void tryHandshakeIfNeeded();
     void syncThresholdIfNeeded();
+    bool handshake();
+    bool hasLostConnection() const;
     uint8_t crc8(const uint8_t *data, uint8_t len) const;
     bool isWriteCommand(uint8_t comando) const;
     uint8_t expectedResponseLength(uint8_t comando) const;

@@ -130,10 +130,21 @@ Ou seja, quem usa a biblioteca precisa apenas conhecer a API do mestre. O firmwa
 
 ## Exemplos
 
-Veja a pasta `examples/` para exemplos prontos:
+A pasta `examples/` foi organizada com foco no uso real do mestre:
 
-- CRC e framing basico
-- tamanhos de comandos
-- write + ACK
-- snapshot linha + cor
-- estatisticas e helpers
+- `Exemplo_01_Handshake_Basico`
+  - mostra o estado da conexao, versao remota e erros mais recentes
+- `Exemplo_02_Leitura_Linha`
+  - le linha calibrada e linha RAW
+- `Exemplo_03_Snapshot_Combinado`
+  - le linha + cor no snapshot principal e RGBW RAW em seguida
+- `Exemplo_04_Calibracao_Segura_Estatisticas`
+  - mostra unlock de EEPROM, calibracao remota e leitura de estatisticas
+- `Exemplo_05_Staleness_Fallback`
+  - mostra como fazer fallback quando o modulo nao estiver `CONNECTED`
+
+Tambem foi mantido um unico exemplo mais interno, separado dos exemplos de uso comum:
+
+- `Exemplo_06_Protocolo_Puro`
+  - mostra CRC, framing, ACK, tamanhos esperados de resposta e parse de frames simulados
+  - este exemplo usa `#define LINECOLORPROTOCOL_NO_I2C_CLIENT` por ser focado apenas nos helpers do protocolo

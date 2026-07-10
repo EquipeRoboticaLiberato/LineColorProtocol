@@ -3,6 +3,7 @@
 
 using namespace LineColorProtocol;
 
+// Exemplo auxiliar para imprimir frames simulados em hexadecimal.
 void printHex(const uint8_t *data, uint8_t len) {
   for (uint8_t i = 0; i < len; i++) {
     if (data[i] < 16) Serial.print('0');
@@ -18,8 +19,10 @@ void setup() {
   Serial.println(F("=== Exemplo 06: Protocolo Puro ==="));
   Serial.println(F("Este exemplo mostra o framing e os helpers internos do protocolo."));
 
+  // Este sketch nao conversa com o I2C: ele apenas monta frames de exemplo.
   const uint8_t sensorCount = 6;
 
+  // Frame simples de requisicao: comando, sequence id e CRC.
   uint8_t request[MAX_FRAME_BUFFER] = {0};
   uint8_t reqLen = 0;
   request[reqLen++] = READ_DEVICE_INFO;
@@ -33,6 +36,8 @@ void setup() {
   Serial.println();
 
   Serial.println(F("Comandos atuais e tamanho esperado de resposta:"));
+
+  // Lista usada para conferir rapidamente os comandos publicados pela biblioteca.
   const uint8_t cmds[] = {
     READ_COLOR,
     READ_RAW_RGBW,
@@ -61,6 +66,7 @@ void setup() {
   }
   Serial.println();
 
+  // ACK de escrita: sequence id, comando original, status do ACK e CRC.
   uint8_t ack[MAX_FRAME_BUFFER] = {0};
   uint8_t ackLen = 0;
   ack[ackLen++] = 0x2A;
@@ -74,6 +80,7 @@ void setup() {
   Serial.println(ackStatusName(ack[2]));
   Serial.println();
 
+  // Snapshot simulado de linha + cor, no mesmo formato que o escravo envia.
   uint8_t snapshot[MAX_FRAME_BUFFER] = {0};
   uint8_t snapLen = 0;
   snapshot[snapLen++] = 0x10;
@@ -101,6 +108,7 @@ void setup() {
   Serial.println(readU16BE(&snapshot[3]));
   Serial.println();
 
+  // Frame simulado de estatisticas remotas.
   uint8_t statsFrame[MAX_FRAME_BUFFER] = {0};
   uint8_t statsLen = 0;
   statsFrame[statsLen++] = 0x55;

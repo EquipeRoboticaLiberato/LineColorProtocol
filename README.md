@@ -102,8 +102,11 @@ O RGB RAW corrigido mostra a etapa intermediaria usada pelo firmware antes da no
 ### Visualizacao para exemplos
 
 - `#include <LineColorProtocolView.h>`
+- `LineColorProtocolView::printBasicStatus()`
+- `LineColorProtocolView::readAndPrintLine()`
 - `LineColorProtocolView::readAndPrintLineAndColor()`
 - `LineColorProtocolView::readAndPrintStats()`
+- `LineColorProtocolView::printColorViewHelp()`
 - `LineColorProtocolView::updateColorViewMode()`
 
 Esse header e opcional. Ele concentra funcoes de impressao no `Serial` para manter os exemplos mais curtos e mais amigaveis para iniciantes.
@@ -187,11 +190,13 @@ A pasta `examples/` foi organizada com foco no uso real do mestre:
 - `Exemplo_03_Snapshot_Combinado`
   - le linha + cor no snapshot principal e permite alternar a visualizacao entre RGBW RAW, limites calibrados, RGB RAW corrigido, RGB normalizado e HSV
 - `Exemplo_04_Calibracao_Segura_Estatisticas`
-  - mostra calibracao remota com espera segura, estatisticas e leituras logo apos calibrar
+  - mostra snapshot continuo de linha + cor, pausa apenas durante a calibracao remota e preserva estatisticas
 - `Exemplo_05_Staleness_Fallback`
   - mostra como fazer fallback quando o modulo nao estiver `CONNECTED`
 - `Exemplo_07_Leitura_Simples`
   - exemplo curto para demonstracao inicial de linha + cor
+
+Todos os exemplos principais possuem comentarios curtos nos pontos que costumam ser copiados para sketches de alunos.
 
 Tambem foi mantido um exemplo mais interno, separado dos exemplos de uso comum:
 

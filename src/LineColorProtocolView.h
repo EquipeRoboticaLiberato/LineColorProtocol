@@ -43,6 +43,56 @@ inline bool connectionAvailable(Stream &out, ColorSensorI2C &sensor, const __Fla
   return false;
 }
 
+inline void printBasicStatus(Stream &out, ColorSensorI2C &sensor)
+{
+  ColorSensorI2C::ConnectionStatus currentStatus = sensor.status();
+
+  out.print(F("Status: "));
+  out.println(statusName(currentStatus));
+  out.print(F("SensorCount remoto: "));
+  out.println(sensor.getSensorCount());
+  out.print(F("Versao protocolo remoto: "));
+  out.println(sensor.getProtocolVersion());
+  out.print(F("Versao protocolo atual (lib): "));
+  out.println(LineColorProtocol::PROTOCOL_VERSION_CURRENT);
+  out.print(F("Ultimo erro: "));
+  out.println(sensor.getLastError());
+  out.println();
+}
+
+inline void printLineValues(Stream &out, ColorSensorI2C &sensor)
+{
+  out.print(F("Pos: "));
+  out.print(sensor.getPosition());
+  out.print(F(" | Bool: 0b"));
+  LineColorProtocol::printSensorBoolean(out, sensor.getBoolean());
+
+  out.print(F(" | Sensores: "));
+  for (uint8_t i = 0; i < sensor.getSensorCount(); i++) {
+    out.print(sensor.getSingleSensor(i));
+    if (i + 1 < sensor.getSensorCount()) out.print('\t');
+  }
+
+  out.print(F(" | RAW: "));
+  for (uint8_t i = 0; i < sensor.getSensorCount(); i++) {
+    out.print(sensor.getSingleSensorRaw(i));
+    if (i + 1 < sensor.getSensorCount()) out.print('\t');
+  }
+  out.println();
+}
+
+inline bool readAndPrintLine(Stream &out, ColorSensorI2C &sensor)
+{
+  sensor.readLine();
+  if (!connectionAvailable(out, sensor, F("Linha calibrada"))) return false;
+
+  sensor.readLineRaw();
+  if (!connectionAvailable(out, sensor, F("Linha RAW"))) return false;
+
+  printLineValues(out, sensor);
+  return true;
+}
+
 inline void printRawRGBW(Stream &out, ColorSensorI2C &sensor, uint8_t lado)
 {
   out.print(sensor.getRawRGBW(lado, _RED));
@@ -122,6 +172,11 @@ inline void printColorValues(Stream &out, ColorSensorI2C &sensor, uint8_t lado, 
       printHSV(out, sensor, lado);
       break;
   }
+}
+
+inline void printColorViewHelp(Stream &out)
+{
+  out.println(F("r RAW | l calibracao | c corrigido | g RGB | h HSV"));
 }
 
 inline bool setColorViewMode(char command, ColorViewMode &mode)

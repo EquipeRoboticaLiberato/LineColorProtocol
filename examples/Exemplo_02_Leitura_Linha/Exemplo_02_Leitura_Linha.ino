@@ -22,11 +22,24 @@ void setup() {
 }
 
 void loop() {
-  // Este helper le a linha calibrada e tambem os valores RAW dos sensores.
-  if (!LineColorProtocolView::readAndPrintLine(Serial, sensor)) {
+  // Primeiro le a linha calibrada, como nos sketches antigos do robo.
+  sensor.readLine();
+
+  if (!LineColorProtocolView::connectionAvailable(Serial, sensor, F("Linha calibrada"))) {
     delay(100);
     return;
   }
+
+  // Depois le os valores RAW, uteis para diagnostico e calibracao.
+  sensor.readLineRaw();
+
+  if (!LineColorProtocolView::connectionAvailable(Serial, sensor, F("Linha RAW"))) {
+    delay(100);
+    return;
+  }
+
+  // A funcao de visualizacao apenas imprime o que ja foi lido acima.
+  LineColorProtocolView::printLineValues(Serial, sensor);
 
   delay(50);
 }

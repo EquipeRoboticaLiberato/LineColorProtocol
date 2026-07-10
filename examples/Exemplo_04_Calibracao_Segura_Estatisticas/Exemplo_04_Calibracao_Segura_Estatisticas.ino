@@ -32,24 +32,35 @@ void loop() {
       // lineCalibrateAndWait() arma a EEPROM, pede a calibracao e espera terminar.
       if (sensor.lineCalibrateAndWait()) {
         Serial.println(F("Linha OK - snapshots retomados"));
-      } else {
+      }
+      else {
         LineColorProtocolView::printAckError(Serial, sensor);
       }
       ultimoSnapshotMs = millis();
-    } else if (ch == '2') {
+    }
+    else if (ch == '2') {
       Serial.println(F("Cor: apresente as referencias por 10s"));
 
       // Durante este bloqueio o exemplo deixa de imprimir snapshots.
       if (sensor.colorCalibrateAndWait()) {
         Serial.println(F("Cor OK - snapshots retomados"));
-      } else {
+      }
+      else {
         LineColorProtocolView::printAckError(Serial, sensor);
       }
       ultimoSnapshotMs = millis();
-    } else if (ch == 's' || ch == 'S') {
-      // Estatisticas ajudam a diagnosticar CRC, ACK, escritas e busy remoto.
-      LineColorProtocolView::readAndPrintStats(Serial, sensor);
-    } else if (LineColorProtocolView::setColorViewMode(ch, modoCor)) {
+    }
+    else if (ch == 's' || ch == 'S') {
+      // Primeiro le as estatisticas; depois imprime os valores recebidos.
+      if (sensor.readStats()) {
+        LineColorProtocolView::printStats(Serial, sensor.getStats());
+      }
+      else {
+        Serial.print(F("Falha READ_STATS erro="));
+        Serial.println(sensor.getLastError());
+      }
+    }
+    else if (LineColorProtocolView::setColorViewMode(ch, modoCor)) {
       Serial.print(F("Modo de cor alterado: "));
       Serial.println(ch);
     }
@@ -57,6 +68,24 @@ void loop() {
 
   if (millis() - ultimoSnapshotMs >= INTERVALO_SNAPSHOT_MS) {
     ultimoSnapshotMs = millis();
-    LineColorProtocolView::readAndPrintLineAndColor(Serial, sensor, modoCor);
+
+    // Le o snapshot principal, depois a visualizacao de cor escolhida.
+    sensor.readLineAndColor();
+
+    if (!LineColorProtocolView::connectionAvailable(Serial, sensor, F("Snapshot"))) {
+      return;
+    }
+
+    if (!LineColorProtocolView::readColorDetails(sensor, modoCor)) {
+      (void)LineColorProtocolView::connectionAvailable(Serial, sensor, F("Cor"));
+      return;
+    }
+
+    if (!LineColorProtocolView::connectionAvailable(Serial, sensor, F("Cor"))) {
+      return;
+    }
+
+    // A impressao fica separada da leitura para ficar mais facil de estudar.
+    LineColorProtocolView::printLineAndColor(Serial, sensor, modoCor);
   }
 }

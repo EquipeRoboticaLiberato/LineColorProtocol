@@ -43,10 +43,8 @@ inline bool connectionAvailable(Stream &out, ColorSensorI2C &sensor, const __Fla
   return false;
 }
 
-inline void printBasicStatus(Stream &out, ColorSensorI2C &sensor)
+inline void printBasicStatus(Stream &out, ColorSensorI2C &sensor, ColorSensorI2C::ConnectionStatus currentStatus)
 {
-  ColorSensorI2C::ConnectionStatus currentStatus = sensor.status();
-
   out.print(F("Status: "));
   out.println(statusName(currentStatus));
   out.print(F("SensorCount remoto: "));
@@ -79,18 +77,6 @@ inline void printLineValues(Stream &out, ColorSensorI2C &sensor)
     if (i + 1 < sensor.getSensorCount()) out.print('\t');
   }
   out.println();
-}
-
-inline bool readAndPrintLine(Stream &out, ColorSensorI2C &sensor)
-{
-  sensor.readLine();
-  if (!connectionAvailable(out, sensor, F("Linha calibrada"))) return false;
-
-  sensor.readLineRaw();
-  if (!connectionAvailable(out, sensor, F("Linha RAW"))) return false;
-
-  printLineValues(out, sensor);
-  return true;
 }
 
 inline void printRawRGBW(Stream &out, ColorSensorI2C &sensor, uint8_t lado)
@@ -248,22 +234,6 @@ inline void printLineAndColor(Stream &out, ColorSensorI2C &sensor, ColorViewMode
   out.println();
 }
 
-inline bool readAndPrintLineAndColor(Stream &out, ColorSensorI2C &sensor, ColorViewMode mode)
-{
-  sensor.readLineAndColor();
-  if (!connectionAvailable(out, sensor, F("Snapshot"))) return false;
-
-  if (!readColorDetails(sensor, mode)) {
-    (void)connectionAvailable(out, sensor, F("Cor"));
-    return false;
-  }
-
-  if (!connectionAvailable(out, sensor, F("Cor"))) return false;
-
-  printLineAndColor(out, sensor, mode);
-  return true;
-}
-
 inline void printStats(Stream &out, const LineColorRemoteStats &stats)
 {
   out.print(F("Uptime(ms): ")); out.println(stats.uptimeMs);
@@ -276,18 +246,6 @@ inline void printStats(Stream &out, const LineColorRemoteStats &stats)
   out.print(F("EEPROM writes: ")); out.println(stats.eepromWriteCount);
   out.print(F("Last EEPROM write(ms): ")); out.println(stats.lastEepromWriteMs);
   out.print(F("Unlock restante(ms): ")); out.println(stats.eepromUnlockRemainingMs);
-}
-
-inline bool readAndPrintStats(Stream &out, ColorSensorI2C &sensor)
-{
-  if (!sensor.readStats()) {
-    out.print(F("Falha READ_STATS erro="));
-    out.println(sensor.getLastError());
-    return false;
-  }
-
-  printStats(out, sensor.getStats());
-  return true;
 }
 
 inline void printAckError(Stream &out, ColorSensorI2C &sensor)

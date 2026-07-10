@@ -103,13 +103,13 @@ O RGB RAW corrigido mostra a etapa intermediaria usada pelo firmware antes da no
 
 - `#include <LineColorProtocolView.h>`
 - `LineColorProtocolView::printBasicStatus()`
-- `LineColorProtocolView::readAndPrintLine()`
-- `LineColorProtocolView::readAndPrintLineAndColor()`
-- `LineColorProtocolView::readAndPrintStats()`
+- `LineColorProtocolView::printLineValues()`
+- `LineColorProtocolView::printLineAndColor()`
+- `LineColorProtocolView::printStats()`
 - `LineColorProtocolView::printColorViewHelp()`
 - `LineColorProtocolView::updateColorViewMode()`
 
-Esse header e opcional. Ele concentra funcoes de impressao no `Serial` para manter os exemplos mais curtos e mais amigaveis para iniciantes.
+Esse header e opcional. Ele concentra funcoes de impressao no `Serial` para manter os exemplos mais curtos e mais amigaveis para iniciantes, sem esconder as chamadas de leitura como `readLine()`, `readLineRaw()` e `readLineAndColor()`.
 
 ### Calibracao remota segura
 

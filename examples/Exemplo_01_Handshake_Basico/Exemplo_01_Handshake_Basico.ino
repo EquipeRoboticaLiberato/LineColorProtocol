@@ -19,6 +19,9 @@ void setup() {
 
 void loop() {
   // Para o robo, normalmente basta olhar se status() esta CONNECTED.
-  LineColorProtocolView::printBasicStatus(Serial, sensor);
+  ColorSensorI2C::ConnectionStatus currentStatus = sensor.status();
+
+  // A funcao de visualizacao apenas imprime o status ja consultado acima.
+  LineColorProtocolView::printBasicStatus(Serial, sensor, currentStatus);
   delay(1000);
 }

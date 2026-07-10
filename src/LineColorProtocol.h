@@ -13,7 +13,7 @@ static constexpr uint8_t DEFAULT_SLAVE_ADDRESS = 0x04;
 static constexpr uint8_t MAX_FRAME_BUFFER = 33;
 static constexpr uint8_t MAX_BUFFER = MAX_FRAME_BUFFER;
 
-static constexpr uint8_t PROTOCOL_VERSION_CURRENT = 0x03;
+static constexpr uint8_t PROTOCOL_VERSION_CURRENT = 0x08;
 
 static constexpr uint8_t CONTINUOUS = 0;
 
@@ -36,7 +36,11 @@ enum Command : uint8_t {
   READ_DEVICE_INFO = 0x0E,
   ARM_EEPROM_WRITE = 0x0F,
   READ_LINE_COLOR_SNAPSHOT = 0x10,
-  READ_STATS = 0x11
+  READ_STATS = 0x11,
+  READ_COLOR_RGB = 0x12,
+  READ_COLOR_HSV = 0x13,
+  READ_COLOR_CORRECTED_RGB = 0x14,
+  READ_COLOR_CALIBRATION = 0x15
 };
 
 // ---------------------------------------------------------------------------
@@ -50,6 +54,10 @@ static constexpr uint32_t CAP_READ_STATS          = 0x00000008UL;
 static constexpr uint32_t CAP_WRITE_ACK           = 0x00000010UL;
 static constexpr uint32_t CAP_EEPROM_UNLOCK       = 0x00000020UL;
 static constexpr uint32_t CAP_CRC8_SEQ            = 0x00000040UL;
+static constexpr uint32_t CAP_COLOR_RGB           = 0x00000080UL;
+static constexpr uint32_t CAP_COLOR_HSV           = 0x00000100UL;
+static constexpr uint32_t CAP_COLOR_CORRECTED_RGB = 0x00000200UL;
+static constexpr uint32_t CAP_COLOR_CALIBRATION   = 0x00000400UL;
 
 static constexpr uint32_t CAPABILITIES_DEFAULT =
     CAP_LINE_SNAPSHOT |
@@ -58,10 +66,26 @@ static constexpr uint32_t CAPABILITIES_DEFAULT =
     CAP_READ_STATS |
     CAP_WRITE_ACK |
     CAP_EEPROM_UNLOCK |
-    CAP_CRC8_SEQ;
+    CAP_CRC8_SEQ |
+    CAP_COLOR_RGB |
+    CAP_COLOR_HSV |
+    CAP_COLOR_CORRECTED_RGB |
+    CAP_COLOR_CALIBRATION;
+
+static constexpr uint8_t RGB_RED   = 0;
+static constexpr uint8_t RGB_GREEN = 1;
+static constexpr uint8_t RGB_BLUE  = 2;
+
+static constexpr uint8_t HSV_HUE        = 0;
+static constexpr uint8_t HSV_SATURATION = 1;
+static constexpr uint8_t HSV_VALUE      = 2;
 
 static constexpr uint8_t STATUS_QTR_CALIBRATED = 0x01;
 static constexpr uint8_t STATUS_ON_LINE        = 0x02;
+static constexpr uint8_t STATUS_COLOR_CALIBRATED = 0x04;
+static constexpr uint8_t STATUS_BUSY             = 0x08;
+static constexpr uint8_t STATUS_LINE_CALIBRATING = 0x10;
+static constexpr uint8_t STATUS_COLOR_CALIBRATING = 0x20;
 
 // ---------------------------------------------------------------------------
 // ACK status
@@ -91,15 +115,22 @@ uint8_t crc8(const uint8_t *data, uint8_t len);
 bool frameCRCValid(const uint8_t *data, uint8_t len);
 void appendCRC(uint8_t *data, uint8_t &len);
 void appendU16BE(uint8_t *data, uint8_t &len, uint16_t value);
+void appendI16BE(uint8_t *data, uint8_t &len, int16_t value);
 void appendU32BE(uint8_t *data, uint8_t &len, uint32_t value);
 uint16_t readU16BE(const uint8_t *data);
+int16_t readI16BE(const uint8_t *data);
 uint32_t readU32BE(const uint8_t *data);
 
 bool isWriteCommand(uint8_t command);
 bool isReadCommand(uint8_t command);
 bool isKnownCommand(uint8_t command);
 uint8_t expectedResponseLength(uint8_t command, uint8_t sensorCount);
-uint8_t protocolStatusFlags(bool qtrCalibrated, bool onLine);
+uint8_t protocolStatusFlags(bool qtrCalibrated,
+                            bool onLine,
+                            bool colorCalibrated = false,
+                            bool busy = false,
+                            bool lineCalibrating = false,
+                            bool colorCalibrating = false);
 
 const char *commandName(uint8_t command);
 const char *ackStatusName(uint8_t status);

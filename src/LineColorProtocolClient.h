@@ -59,11 +59,27 @@ static constexpr uint8_t READ_DEVICE_INFO = LineColorProtocol::READ_DEVICE_INFO;
 static constexpr uint8_t ARM_EEPROM_WRITE = LineColorProtocol::ARM_EEPROM_WRITE;
 static constexpr uint8_t READ_LINE_COLOR_SNAPSHOT = LineColorProtocol::READ_LINE_COLOR_SNAPSHOT;
 static constexpr uint8_t READ_STATS = LineColorProtocol::READ_STATS;
+static constexpr uint8_t READ_COLOR_RGB = LineColorProtocol::READ_COLOR_RGB;
+static constexpr uint8_t READ_COLOR_HSV = LineColorProtocol::READ_COLOR_HSV;
+static constexpr uint8_t READ_COLOR_CORRECTED_RGB = LineColorProtocol::READ_COLOR_CORRECTED_RGB;
+static constexpr uint8_t READ_COLOR_CALIBRATION = LineColorProtocol::READ_COLOR_CALIBRATION;
 
 static constexpr uint8_t MAX_BUFFER = LineColorProtocol::MAX_BUFFER;
 
+static constexpr uint8_t RGB_RED = LineColorProtocol::RGB_RED;
+static constexpr uint8_t RGB_GREEN = LineColorProtocol::RGB_GREEN;
+static constexpr uint8_t RGB_BLUE = LineColorProtocol::RGB_BLUE;
+
+static constexpr uint8_t HSV_HUE = LineColorProtocol::HSV_HUE;
+static constexpr uint8_t HSV_SATURATION = LineColorProtocol::HSV_SATURATION;
+static constexpr uint8_t HSV_VALUE = LineColorProtocol::HSV_VALUE;
+
 static constexpr uint8_t STATUS_QTR_CALIBRATED = LineColorProtocol::STATUS_QTR_CALIBRATED;
 static constexpr uint8_t STATUS_ON_LINE = LineColorProtocol::STATUS_ON_LINE;
+static constexpr uint8_t STATUS_COLOR_CALIBRATED = LineColorProtocol::STATUS_COLOR_CALIBRATED;
+static constexpr uint8_t STATUS_BUSY = LineColorProtocol::STATUS_BUSY;
+static constexpr uint8_t STATUS_LINE_CALIBRATING = LineColorProtocol::STATUS_LINE_CALIBRATING;
+static constexpr uint8_t STATUS_COLOR_CALIBRATING = LineColorProtocol::STATUS_COLOR_CALIBRATING;
 
 static constexpr uint8_t ACK_OK = LineColorProtocol::ACK_OK;
 static constexpr uint8_t ACK_ERR_BAD_LENGTH = LineColorProtocol::ACK_ERR_BAD_LENGTH;
@@ -84,6 +100,11 @@ struct ColorData{
   uint8_t color;
   uint8_t rating;
   uint16_t rawRGB[4];
+  int16_t calibrationMin[3];
+  int16_t calibrationMax[3];
+  uint16_t correctedRawRGB[3];
+  uint8_t normalizedRGB[3];
+  uint16_t hsv[3];
 };
 
 struct LineColorRemoteStats {
@@ -123,7 +144,7 @@ class ColorSensorI2C {
     ColorSensorI2C(uint8_t slaveAddress, TwoWire* wireInstance);
 
     // API basica / mais indicada para blocos
-    void begin(uint32_t clockHz = 100000UL);
+    bool begin(uint32_t clockHz = 100000UL);
     ConnectionStatus status();
     void setThreshold(uint16_t value);
     bool armEepromWrite();
@@ -131,9 +152,15 @@ class ColorSensorI2C {
     void readLineRaw();
     void readColor();
     void readColorRaw();
+    bool readColorCalibration();
+    bool readColorCorrectedRaw();
+    bool readColorRGB();
+    bool readColorHSV();
     bool readLineAndColor();
-    void lineCalibrate();
-    void colorCalibrate();
+    bool lineCalibrate();
+    bool colorCalibrate();
+    bool lineCalibrateAndWait(unsigned long timeoutMs = 8000UL);
+    bool colorCalibrateAndWait(unsigned long timeoutMs = 15000UL);
 
     uint8_t getColor(uint8_t lado);
     uint16_t getPosition();
@@ -142,6 +169,11 @@ class ColorSensorI2C {
     uint16_t getSingleSensor(uint8_t sensor);
     uint16_t getSingleSensorRaw(uint8_t sensor);
     uint16_t getRawRGBW(uint8_t lado, uint8_t channel);
+    int16_t getColorCalibrationMin(uint8_t lado, uint8_t channel);
+    int16_t getColorCalibrationMax(uint8_t lado, uint8_t channel);
+    uint16_t getCorrectedRawRGB(uint8_t lado, uint8_t channel);
+    uint8_t getRGB(uint8_t lado, uint8_t channel);
+    uint16_t getHSV(uint8_t lado, uint8_t channel);
     bool onLine();
     const char* getColorStr();
     uint16_t getThreshold();
@@ -152,6 +184,10 @@ class ColorSensorI2C {
     bool enviarComando(uint8_t comando, unsigned long timeout = 500);
     unsigned long getLastSuccess() const;
     bool remoteQtrCalibrated() const;
+    bool remoteColorCalibrated() const;
+    bool remoteBusy() const;
+    bool remoteLineCalibrating() const;
+    bool remoteColorCalibrating() const;
     uint8_t getLastAckStatus() const;
     bool readStats();
     uint8_t getProtocolVersion() const;
@@ -171,15 +207,19 @@ class ColorSensorI2C {
     void syncThresholdIfNeeded();
     bool handshake();
     bool hasLostConnection() const;
+    bool refreshDeviceInfo(unsigned long timeout = 100);
+    bool waitRemoteIdle(unsigned long timeoutMs);
+    bool shouldProbeStatus(unsigned long now) const;
     uint8_t crc8(const uint8_t *data, uint8_t len) const;
     bool isWriteCommand(uint8_t comando) const;
     uint8_t expectedResponseLength(uint8_t comando) const;
     uint8_t nextSequence();
     uint16_t readU16BE(const uint8_t *data) const;
+    int16_t readI16BE(const uint8_t *data) const;
     uint32_t readU32BE(const uint8_t *data) const;
 
-    ColorData direita = {_ERROR, 0, {0, 0, 0, 0}};
-    ColorData esquerda = {_ERROR, 0, {0, 0, 0, 0}};
+    ColorData direita = {_ERROR, 0, {0, 0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+    ColorData esquerda = {_ERROR, 0, {0, 0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
     uint16_t sensorValue[QTRMaxSensors] = {0};
     uint16_t sensorValueRAW[QTRMaxSensors] = {0};
     uint16_t linePosition = 0;
@@ -194,10 +234,12 @@ class ColorSensorI2C {
     uint8_t lastError = COMM_OK;
     unsigned long lastSuccess = 0;
     unsigned long nextHandshakeRetry = 0;
+    unsigned long nextStatusProbe = 0;
     bool thresholdDirty = false;
     uint8_t txSequence = 0;
     uint8_t lastAckStatus = ACK_OK;
     unsigned long stalenessTimeoutMs = 500;
+    unsigned long statusProbeIntervalMs = 250;
     
     LineColorRemoteStats remoteStats = {};
     

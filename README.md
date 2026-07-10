@@ -15,6 +15,7 @@ Com esta biblioteca, o Arduino mestre pode:
 - ler snapshot combinado de linha + cor
 - ler valores RAW do sensor de linha
 - ler valores RAW RGBW dos sensores de cor
+- ler valores RAW RGB corrigidos por ambiente e fator K
 - solicitar calibracao remota com protecao de escrita
 - consultar estado e estatisticas de comunicacao
 
@@ -79,12 +80,44 @@ void loop() {
 - `getSingleSensorRaw()`
 - `readColorRaw()`
 - `getRawRGBW()`
+- `readColorCalibration()`
+- `getColorCalibrationMin()`
+- `getColorCalibrationMax()`
+- `readColorCorrectedRaw()`
+- `getCorrectedRawRGB()`
+
+Os limites calibrados de cor sao retornados por canal RGB, em `int16_t`, pois representam valores ja subtraidos da leitura ambiente/branco.
+
+O RGB RAW corrigido mostra a etapa intermediaria usada pelo firmware antes da normalizacao: canal RAW com subtracao da leitura ambiente/branco e multiplicacao pelo fator K calculado pela calibracao.
+
+### Cor processada
+
+- `readColorRGB()`
+- `getRGB()`
+- `readColorHSV()`
+- `getHSV()`
+
+`getHSV()` retorna `H` em graus (`0..360`) e `S`/`V` em percentual (`0..100`).
+
+### Visualizacao para exemplos
+
+- `#include <LineColorProtocolView.h>`
+- `LineColorProtocolView::readAndPrintLineAndColor()`
+- `LineColorProtocolView::readAndPrintStats()`
+- `LineColorProtocolView::updateColorViewMode()`
+
+Esse header e opcional. Ele concentra funcoes de impressao no `Serial` para manter os exemplos mais curtos e mais amigaveis para iniciantes.
 
 ### Calibracao remota segura
 
 - `armEepromWrite()`
 - `lineCalibrate()`
 - `colorCalibrate()`
+- `lineCalibrateAndWait()`
+- `colorCalibrateAndWait()`
+
+`lineCalibrate()` e `colorCalibrate()` retornam `bool`: `true` indica que o escravo aceitou o comando e respondeu `ACK_OK`.
+Os helpers `lineCalibrateAndWait()` e `colorCalibrateAndWait()` fazem o fluxo completo mais seguro para uso comum: armam a escrita em EEPROM, solicitam a calibracao e aguardam o modulo remoto sair de `BUSY`.
 
 ### Diagnostico avancado
 
@@ -92,6 +125,11 @@ void loop() {
 - `getLastSuccess()`
 - `getLastAckStatus()`
 - `getProtocolVersion()`
+- `remoteQtrCalibrated()`
+- `remoteColorCalibrated()`
+- `remoteBusy()`
+- `remoteLineCalibrating()`
+- `remoteColorCalibrating()`
 - `readStats()`
 - `getStats()`
 
@@ -106,15 +144,21 @@ void loop() {
 - `ColorSensorI2C::LOST_CONNECTION`
   - o modulo ja conectou antes, mas perdeu comunicacao alem do timeout configurado
 
+`begin(clockHz)` retorna `true` quando o handshake inicial foi concluido. Se retornar `false`, o barramento I2C foi iniciado mesmo assim e o sketch pode continuar; chamadas futuras de `status()` tentam reconectar automaticamente.
+
 ## Comandos e capacidades principais do protocolo
 
-A biblioteca ja encapsula os comandos mais importantes do protocolo atual, incluindo:
+A biblioteca ja encapsula os comandos mais importantes do protocolo atual (`PROTOCOL_VERSION_CURRENT = 0x08`), incluindo:
 
 - `READ_LINE_SNAPSHOT`
 - `READ_LINE_COLOR_SNAPSHOT`
 - `READ_COLOR`
 - `READ_IR_RAW`
 - `READ_RAW_RGBW`
+- `READ_COLOR_CALIBRATION`
+- `READ_COLOR_CORRECTED_RGB`
+- `READ_COLOR_RGB`
+- `READ_COLOR_HSV`
 - `READ_DEVICE_INFO`
 - `READ_STATS`
 - `SET_THRESHOLD`
@@ -122,11 +166,15 @@ A biblioteca ja encapsula os comandos mais importantes do protocolo atual, inclu
 - `CALIBRATE_COLOR`
 - `ARM_EEPROM_WRITE`
 
+O protocolo atual tambem publica flags de status para indicar calibracao de linha valida, calibracao de cor valida, modulo ocupado, calibracao de linha em andamento e calibracao de cor em andamento.
+
 ## Observacao importante
 
 Esta biblioteca foi feita para se comunicar com o modulo `Line_Follower_Color_Sensor`.
 
 Ou seja, quem usa a biblioteca precisa apenas conhecer a API do mestre. O firmware interno do modulo remoto e os detalhes da gravacao ficam transparentes para o uso normal.
+
+Como a versao `0x08` adiciona leitura remota dos limites calibrados de cor, atualize a biblioteca do mestre e o firmware do escravo juntos.
 
 ## Exemplos
 
@@ -137,13 +185,15 @@ A pasta `examples/` foi organizada com foco no uso real do mestre:
 - `Exemplo_02_Leitura_Linha`
   - le linha calibrada e linha RAW
 - `Exemplo_03_Snapshot_Combinado`
-  - le linha + cor no snapshot principal e RGBW RAW em seguida
+  - le linha + cor no snapshot principal e permite alternar a visualizacao entre RGBW RAW, limites calibrados, RGB RAW corrigido, RGB normalizado e HSV
 - `Exemplo_04_Calibracao_Segura_Estatisticas`
-  - mostra unlock de EEPROM, calibracao remota e leitura de estatisticas
+  - mostra calibracao remota com espera segura, estatisticas e leituras logo apos calibrar
 - `Exemplo_05_Staleness_Fallback`
   - mostra como fazer fallback quando o modulo nao estiver `CONNECTED`
+- `Exemplo_07_Leitura_Simples`
+  - exemplo curto para demonstracao inicial de linha + cor
 
-Tambem foi mantido um unico exemplo mais interno, separado dos exemplos de uso comum:
+Tambem foi mantido um exemplo mais interno, separado dos exemplos de uso comum:
 
 - `Exemplo_06_Protocolo_Puro`
   - mostra CRC, framing, ACK, tamanhos esperados de resposta e parse de frames simulados

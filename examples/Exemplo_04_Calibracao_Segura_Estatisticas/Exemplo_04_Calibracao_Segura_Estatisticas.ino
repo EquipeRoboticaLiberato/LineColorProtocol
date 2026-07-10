@@ -1,27 +1,14 @@
 #include <Wire.h>
 #include <LineColorProtocol.h>
+#include <LineColorProtocolView.h>
 
 ColorSensorI2C sensor(SLAVE_ADDRESS, &Wire);
 
-void printStats() {
-  if (!sensor.readStats()) {
-    Serial.print(F("Falha em READ_STATS. lastError="));
-    Serial.println(sensor.getLastError());
-    return;
+void mostrarLeitura(LineColorProtocolView::ColorViewMode modo) {
+  for (uint8_t i = 0; i < 8; i++) {
+    LineColorProtocolView::readAndPrintLineAndColor(Serial, sensor, modo);
+    delay(150);
   }
-
-  Serial.println(F("--- Stats remotos ---"));
-  const LineColorRemoteStats &stats = sensor.getStats();
-  Serial.print(F("Uptime(ms): ")); Serial.println(stats.uptimeMs);
-  Serial.print(F("RX CRC err: ")); Serial.println(stats.rxCrcErrors);
-  Serial.print(F("RX frame err: ")); Serial.println(stats.rxFrameErrors);
-  Serial.print(F("RX unknown cmd: ")); Serial.println(stats.rxUnknownCommands);
-  Serial.print(F("TX responses: ")); Serial.println(stats.txResponses);
-  Serial.print(F("QTR calib count: ")); Serial.println(stats.qtrCalibrationCount);
-  Serial.print(F("Color calib count: ")); Serial.println(stats.colorCalibrationCount);
-  Serial.print(F("EEPROM writes: ")); Serial.println(stats.eepromWriteCount);
-  Serial.print(F("Last EEPROM write(ms): ")); Serial.println(stats.lastEepromWriteMs);
-  Serial.print(F("Unlock restante(ms): ")); Serial.println(stats.eepromUnlockRemainingMs);
 }
 
 void setup() {
@@ -29,58 +16,44 @@ void setup() {
   while (!Serial) {}
 
   sensor.begin(100000UL);
-  Serial.println(F("=== Exemplo 04: Calibracao Segura + Estatisticas ==="));
-  Serial.println(F("Comandos via Serial:"));
-  Serial.println(F("  s -> ler stats"));
-  Serial.println(F("  l -> unlock + lineCalibrate (mova o sensor por ~5s)"));
-  Serial.println(F("  c -> unlock + colorCalibrate (leva ~10s no firmware atual)"));
+  sensor.setThreshold(950);
+  sensor.setStalenessTimeout(300);
+
+  Serial.println(F("Exemplo 04 - Calibracao + leitura"));
+  Serial.println(F("s stats | l calibra linha | c calibra cor | v snapshot"));
 }
 
 void loop() {
   if (!Serial.available()) return;
 
   char ch = (char)Serial.read();
+
   if (ch == 's') {
-    printStats();
-  } else if (ch == 'l') {
-    Serial.println(F("Armando janela de EEPROM..."));
-    if (!sensor.armEepromWrite()) {
-      Serial.print(F("Falhou unlock. lastError="));
-      Serial.print(sensor.getLastError());
-      Serial.print(F(" ack="));
-      Serial.print(sensor.getLastAckStatus());
-      Serial.print(F(" ("));
-      Serial.print(LineColorProtocol::ackStatusName(sensor.getLastAckStatus()));
-      Serial.println(F(")"));
-      return;
-    }
+    LineColorProtocolView::readAndPrintStats(Serial, sensor);
+  }
 
-    Serial.println(F("Enviando lineCalibrate..."));
-    sensor.lineCalibrate();
-    Serial.print(F("ACK status lineCalibrate: "));
-    Serial.print(sensor.getLastAckStatus());
-    Serial.print(F(" ("));
-    Serial.print(LineColorProtocol::ackStatusName(sensor.getLastAckStatus()));
-    Serial.println(F(")"));
-  } else if (ch == 'c') {
-    Serial.println(F("Armando janela de EEPROM..."));
-    if (!sensor.armEepromWrite()) {
-      Serial.print(F("Falhou unlock. lastError="));
-      Serial.print(sensor.getLastError());
-      Serial.print(F(" ack="));
-      Serial.print(sensor.getLastAckStatus());
-      Serial.print(F(" ("));
-      Serial.print(LineColorProtocol::ackStatusName(sensor.getLastAckStatus()));
-      Serial.println(F(")"));
-      return;
-    }
+  if (ch == 'v') {
+    mostrarLeitura(LineColorProtocolView::COLOR_VIEW_HSV);
+  }
 
-    Serial.println(F("Enviando colorCalibrate..."));
-    sensor.colorCalibrate();
-    Serial.print(F("ACK status colorCalibrate: "));
-    Serial.print(sensor.getLastAckStatus());
-    Serial.print(F(" ("));
-    Serial.print(LineColorProtocol::ackStatusName(sensor.getLastAckStatus()));
-    Serial.println(F(")"));
+  if (ch == 'l') {
+    Serial.println(F("Linha: mova o sensor por 5s"));
+    if (sensor.lineCalibrateAndWait()) {
+      Serial.println(F("Linha OK"));
+      mostrarLeitura(LineColorProtocolView::COLOR_VIEW_RAW_RGBW);
+    } else {
+      LineColorProtocolView::printAckError(Serial, sensor);
+    }
+  }
+
+  if (ch == 'c') {
+    Serial.println(F("Cor: apresente as referencias por 10s"));
+    if (sensor.colorCalibrateAndWait()) {
+      Serial.println(F("Cor OK"));
+      mostrarLeitura(LineColorProtocolView::COLOR_VIEW_CALIBRATION);
+      mostrarLeitura(LineColorProtocolView::COLOR_VIEW_HSV);
+    } else {
+      LineColorProtocolView::printAckError(Serial, sensor);
+    }
   }
 }

@@ -35,14 +35,20 @@ ColorSensorI2C::ColorSensorI2C(uint8_t slaveAddress, TwoWire* wireInstance)
 
 //==========================================================================
 
-// Descricao: Inicializa a comunicacao I2C e faz handshake com o escravo quando possivel.
+// Descricao: Inicializa a comunicacao I2C e tenta fazer handshake com o escravo.
 // Entradas: `clockHz`.
-// Exemplo: `sensor.begin(100000UL);`
-void ColorSensorI2C::begin(uint32_t clockHz) {
+// Exemplo: `bool conectado = sensor.begin(100000UL);`
+bool ColorSensorI2C::begin(uint32_t clockHz) {
 
   wire->begin();
   wire->setClock(clockHz);
-  (void)handshake();
+
+  #if defined(ARDUINO_ARCH_AVR)
+    wire->setWireTimeout(25000UL, true);
+  #endif
+
+  nextStatusProbe = 0;
+  return handshake();
   
 }
 
@@ -122,6 +128,58 @@ void ColorSensorI2C::readColorRaw(){
 
 //==========================================================================
 
+// Descricao: Le os limites calibrados min/max dos sensores de cor remotos.
+// Entradas: sem parametros.
+// Exemplo: `sensor.readColorCalibration();`
+bool ColorSensorI2C::readColorCalibration(){
+
+  tryHandshakeIfNeeded();
+  syncThresholdIfNeeded();
+  return enviarComando(READ_COLOR_CALIBRATION);
+
+}
+
+//==========================================================================
+
+// Descricao: Le os valores RAW RGB corrigidos por ambiente e fator K.
+// Entradas: sem parametros.
+// Exemplo: `sensor.readColorCorrectedRaw();`
+bool ColorSensorI2C::readColorCorrectedRaw(){
+
+  tryHandshakeIfNeeded();
+  syncThresholdIfNeeded();
+  return enviarComando(READ_COLOR_CORRECTED_RGB);
+
+}
+
+//==========================================================================
+
+// Descricao: Le o RGB normalizado dos sensores de cor em escala 0..255.
+// Entradas: sem parametros.
+// Exemplo: `sensor.readColorRGB();`
+bool ColorSensorI2C::readColorRGB(){
+
+  tryHandshakeIfNeeded();
+  syncThresholdIfNeeded();
+  return enviarComando(READ_COLOR_RGB);
+
+}
+
+//==========================================================================
+
+// Descricao: Le o HSV usado pelo remoto para classificar as cores.
+// Entradas: sem parametros.
+// Exemplo: `sensor.readColorHSV();`
+bool ColorSensorI2C::readColorHSV(){
+
+  tryHandshakeIfNeeded();
+  syncThresholdIfNeeded();
+  return enviarComando(READ_COLOR_HSV);
+
+}
+
+//==========================================================================
+
 // Descricao: Solicita estatisticas de comunicacao e runtime do escravo.
 // Entradas: sem parametros.
 // Exemplo: `sensor.readStats();`
@@ -176,6 +234,10 @@ bool ColorSensorI2C::enviarComando(uint8_t comando, unsigned long timeout) {
     case READ_DEVICE_INFO:
     case READ_LINE_COLOR_SNAPSHOT:
     case READ_STATS:
+    case READ_COLOR_RGB:
+    case READ_COLOR_HSV:
+    case READ_COLOR_CORRECTED_RGB:
+    case READ_COLOR_CALIBRATION:
       break;
 
     default:
@@ -330,6 +392,34 @@ bool ColorSensorI2C::solicitarDados(uint8_t comando, uint8_t quantidade, unsigne
       }
       break;
 
+    case READ_COLOR_RGB:
+      if (payloadLen != 6) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
+    case READ_COLOR_HSV:
+      if (payloadLen != 8) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
+    case READ_COLOR_CORRECTED_RGB:
+      if (payloadLen != 12) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
+    case READ_COLOR_CALIBRATION:
+      if (payloadLen != 24) {
+        setCommError(COMM_ERR_INVALID_SIZE);
+        return false;
+      }
+      break;
+
     case READ_IR_RAW:
       if (payloadLen == 0 || (payloadLen & 0x01) != 0) {
         setCommError(COMM_ERR_INVALID_SIZE);
@@ -407,6 +497,49 @@ void ColorSensorI2C::storeValues(byte *values, uint8_t comando) {
 
       for(int i = 0; i <= _WHITE; i++)
         esquerda.rawRGB[i] = values[(i * 2) + 8] << 8 | values[(i * 2) + 9];
+
+      break;
+    //----------------------
+    case READ_COLOR_RGB:
+      for(int i = 0; i <= RGB_BLUE; i++)
+        direita.normalizedRGB[i] = values[i];
+
+      for(int i = 0; i <= RGB_BLUE; i++)
+        esquerda.normalizedRGB[i] = values[i + 3];
+
+      break;
+    //----------------------
+    case READ_COLOR_HSV:
+      direita.hsv[HSV_HUE] = values[0] << 8 | values[1];
+      direita.hsv[HSV_SATURATION] = values[2];
+      direita.hsv[HSV_VALUE] = values[3];
+      esquerda.hsv[HSV_HUE] = values[4] << 8 | values[5];
+      esquerda.hsv[HSV_SATURATION] = values[6];
+      esquerda.hsv[HSV_VALUE] = values[7];
+
+      break;
+    //----------------------
+    case READ_COLOR_CORRECTED_RGB:
+      for(int i = 0; i <= RGB_BLUE; i++)
+        direita.correctedRawRGB[i] = values[i * 2] << 8 | values[(i * 2) + 1];
+
+      for(int i = 0; i <= RGB_BLUE; i++)
+        esquerda.correctedRawRGB[i] = values[(i * 2) + 6] << 8 | values[(i * 2) + 7];
+
+      break;
+    //----------------------
+    case READ_COLOR_CALIBRATION:
+      for(int i = 0; i <= RGB_BLUE; i++)
+        direita.calibrationMin[i] = readI16BE(&values[i * 2]);
+
+      for(int i = 0; i <= RGB_BLUE; i++)
+        direita.calibrationMax[i] = readI16BE(&values[(i * 2) + 6]);
+
+      for(int i = 0; i <= RGB_BLUE; i++)
+        esquerda.calibrationMin[i] = readI16BE(&values[(i * 2) + 12]);
+
+      for(int i = 0; i <= RGB_BLUE; i++)
+        esquerda.calibrationMax[i] = readI16BE(&values[(i * 2) + 18]);
 
       break;
     //----------------------
@@ -605,6 +738,15 @@ uint16_t ColorSensorI2C::readU16BE(const uint8_t *data) const {
 
 //==========================================================================
 
+// Descricao: Le um inteiro assinado de 16 bits em formato big-endian a partir de um buffer.
+// Entradas: `data`.
+// Exemplo: `int16_t v = sensor.readI16BE(buf); // uso interno`
+int16_t ColorSensorI2C::readI16BE(const uint8_t *data) const {
+  return LineColorProtocol::readI16BE(data);
+}
+
+//==========================================================================
+
 // Descricao: Le um inteiro de 32 bits em formato big-endian a partir de um buffer.
 // Entradas: `data`.
 // Exemplo: `uint32_t v = sensor.readU32BE(buf); // uso interno`
@@ -796,6 +938,42 @@ bool ColorSensorI2C::remoteQtrCalibrated() const{
 
 //==========================================================================
 
+// Descricao: Informa se os sensores de cor remotos ja possuem calibracao valida.
+// Entradas: sem parametros.
+// Exemplo: `if (sensor.remoteColorCalibrated()) { ... }`
+bool ColorSensorI2C::remoteColorCalibrated() const{
+  return (remoteStatusFlags & STATUS_COLOR_CALIBRATED) != 0;
+}
+
+//==========================================================================
+
+// Descricao: Informa se o modulo remoto esta executando alguma tarefa longa.
+// Entradas: sem parametros.
+// Exemplo: `while (sensor.remoteBusy()) { ... }`
+bool ColorSensorI2C::remoteBusy() const{
+  return (remoteStatusFlags & STATUS_BUSY) != 0;
+}
+
+//==========================================================================
+
+// Descricao: Informa se a calibracao de linha remota esta em andamento.
+// Entradas: sem parametros.
+// Exemplo: `if (sensor.remoteLineCalibrating()) { ... }`
+bool ColorSensorI2C::remoteLineCalibrating() const{
+  return (remoteStatusFlags & STATUS_LINE_CALIBRATING) != 0;
+}
+
+//==========================================================================
+
+// Descricao: Informa se a calibracao de cor remota esta em andamento.
+// Entradas: sem parametros.
+// Exemplo: `if (sensor.remoteColorCalibrating()) { ... }`
+bool ColorSensorI2C::remoteColorCalibrating() const{
+  return (remoteStatusFlags & STATUS_COLOR_CALIBRATING) != 0;
+}
+
+//==========================================================================
+
 // Descricao: Retorna o valor interno associado ao estado/telemetria deste objeto.
 // Entradas: sem parametros.
 // Exemplo: `uint8_t ack = sensor.getLastAckStatus();`
@@ -825,14 +1003,63 @@ bool ColorSensorI2C::hasLostConnection() const{
 
 //==========================================================================
 
+// Descricao: Decide se ja esta na hora de consultar novamente o remoto.
+// Entradas: `now`.
+// Exemplo: `if (shouldProbeStatus(millis())) { ... }`
+bool ColorSensorI2C::shouldProbeStatus(unsigned long now) const{
+  return (long)(now - nextStatusProbe) >= 0;
+}
+
+//==========================================================================
+
 // Descricao: Retorna o estado resumido da conexao com o modulo remoto.
 // Entradas: sem parametros.
 // Exemplo: `if (sensor.status() == ColorSensorI2C::CONNECTED) { ... }`
 ColorSensorI2C::ConnectionStatus ColorSensorI2C::status(){
-  tryHandshakeIfNeeded();
+  const unsigned long now = millis();
+
+  if (!handshakeOk) {
+    tryHandshakeIfNeeded();
+    return handshakeOk ? CONNECTED : DISCONNECTED;
+  }
+
+  if (shouldProbeStatus(now)) {
+    nextStatusProbe = now + statusProbeIntervalMs;
+    (void)refreshDeviceInfo(50);
+  }
+
   if (!handshakeOk) return DISCONNECTED;
   if (hasLostConnection()) return LOST_CONNECTION;
   return CONNECTED;
+}
+
+//==========================================================================
+
+// Descricao: Atualiza informacoes leves do remoto, incluindo flags de calibracao.
+// Entradas: `timeout`.
+// Exemplo: `sensor.refreshDeviceInfo(); // uso interno`
+bool ColorSensorI2C::refreshDeviceInfo(unsigned long timeout){
+  return enviarComando(READ_DEVICE_INFO, timeout);
+}
+
+//==========================================================================
+
+// Descricao: Aguarda o modulo remoto sair do estado ocupado/calibrando.
+// Entradas: `timeoutMs`.
+// Exemplo: `sensor.waitRemoteIdle(8000); // uso interno`
+bool ColorSensorI2C::waitRemoteIdle(unsigned long timeoutMs){
+  const unsigned long start = millis();
+
+  do {
+    if (refreshDeviceInfo(100)) {
+      if (!remoteBusy()) {
+        return true;
+      }
+    }
+    delay(50);
+  } while ((millis() - start) <= timeoutMs);
+
+  return false;
 }
 
 //==========================================================================
@@ -886,6 +1113,86 @@ uint16_t ColorSensorI2C::getRawRGBW(uint8_t lado, uint8_t channel){
 
 //==========================================================================
 
+// Descricao: Retorna o limite minimo calibrado do canal de cor indicado.
+// Entradas: `lado`, `channel`.
+// Exemplo: `int16_t rMin = sensor.getColorCalibrationMin(DIREITA, RGB_RED);`
+int16_t ColorSensorI2C::getColorCalibrationMin(uint8_t lado, uint8_t channel){
+  if (channel > RGB_BLUE) return 0;
+
+  if(lado == DIREITA)
+    return direita.calibrationMin[channel];
+  else if(lado == ESQUERDA)
+    return esquerda.calibrationMin[channel];
+  else
+    return 0;
+}
+
+//==========================================================================
+
+// Descricao: Retorna o limite maximo calibrado do canal de cor indicado.
+// Entradas: `lado`, `channel`.
+// Exemplo: `int16_t rMax = sensor.getColorCalibrationMax(DIREITA, RGB_RED);`
+int16_t ColorSensorI2C::getColorCalibrationMax(uint8_t lado, uint8_t channel){
+  if (channel > RGB_BLUE) return 0;
+
+  if(lado == DIREITA)
+    return direita.calibrationMax[channel];
+  else if(lado == ESQUERDA)
+    return esquerda.calibrationMax[channel];
+  else
+    return 0;
+}
+
+//==========================================================================
+
+// Descricao: Retorna o RGB RAW corrigido por ambiente e fator K.
+// Entradas: `lado`, `channel`.
+// Exemplo: `uint16_t r = sensor.getCorrectedRawRGB(DIREITA, RGB_RED);`
+uint16_t ColorSensorI2C::getCorrectedRawRGB(uint8_t lado, uint8_t channel){
+  if (channel > RGB_BLUE) return 0;
+
+  if(lado == DIREITA)
+    return direita.correctedRawRGB[channel];
+  else if(lado == ESQUERDA)
+    return esquerda.correctedRawRGB[channel];
+  else
+    return 0;
+}
+
+//==========================================================================
+
+// Descricao: Retorna o canal RGB normalizado indicado, em escala 0..255.
+// Entradas: `lado`, `channel`.
+// Exemplo: `uint8_t r = sensor.getRGB(DIREITA, RGB_RED);`
+uint8_t ColorSensorI2C::getRGB(uint8_t lado, uint8_t channel){
+  if (channel > RGB_BLUE) return 0;
+
+  if(lado == DIREITA)
+    return direita.normalizedRGB[channel];
+  else if(lado == ESQUERDA)
+    return esquerda.normalizedRGB[channel];
+  else
+    return 0;
+}
+
+//==========================================================================
+
+// Descricao: Retorna o canal HSV indicado: H=0..360, S/V=0..100.
+// Entradas: `lado`, `channel`.
+// Exemplo: `uint16_t h = sensor.getHSV(DIREITA, HSV_HUE);`
+uint16_t ColorSensorI2C::getHSV(uint8_t lado, uint8_t channel){
+  if (channel > HSV_VALUE) return 0;
+
+  if(lado == DIREITA)
+    return direita.hsv[channel];
+  else if(lado == ESQUERDA)
+    return esquerda.hsv[channel];
+  else
+    return 0;
+}
+
+//==========================================================================
+
 // Descricao: Informa se a linha foi detectada pelo snapshot remoto ou por heuristica local.
 // Entradas: sem parametros.
 // Exemplo: `bool online = sensor.onLine();`
@@ -897,20 +1204,46 @@ bool ColorSensorI2C::onLine(){
 
 // Descricao: Solicita ao escravo a calibracao do sensor de linha.
 // Entradas: sem parametros.
-// Exemplo: `sensor.lineCalibrate();`
-void ColorSensorI2C::lineCalibrate(){
+// Exemplo: `if (sensor.lineCalibrate()) { ... }`
+bool ColorSensorI2C::lineCalibrate(){
   tryHandshakeIfNeeded();
-  enviarComando(QTR_CALIBRATE);
+  return enviarComando(QTR_CALIBRATE);
 }
 
 //==========================================================================
 
 // Descricao: Solicita ao escravo a calibracao dos sensores de cor.
 // Entradas: sem parametros.
-// Exemplo: `sensor.colorCalibrate();`
-void ColorSensorI2C::colorCalibrate(){
+// Exemplo: `if (sensor.colorCalibrate()) { ... }`
+bool ColorSensorI2C::colorCalibrate(){
   tryHandshakeIfNeeded();
-  enviarComando(CALIBRATE_COLOR);
+  return enviarComando(CALIBRATE_COLOR);
+}
+
+//==========================================================================
+
+// Descricao: Arma EEPROM, solicita calibracao de linha e espera finalizar.
+// Entradas: `timeoutMs`.
+// Exemplo: `sensor.lineCalibrateAndWait();`
+bool ColorSensorI2C::lineCalibrateAndWait(unsigned long timeoutMs){
+  if (!armEepromWrite()) return false;
+  if (!lineCalibrate()) return false;
+  if (!waitRemoteIdle(timeoutMs)) return false;
+  if (!refreshDeviceInfo(100)) return false;
+  return remoteQtrCalibrated();
+}
+
+//==========================================================================
+
+// Descricao: Arma EEPROM, solicita calibracao de cor e espera finalizar.
+// Entradas: `timeoutMs`.
+// Exemplo: `sensor.colorCalibrateAndWait();`
+bool ColorSensorI2C::colorCalibrateAndWait(unsigned long timeoutMs){
+  if (!armEepromWrite()) return false;
+  if (!colorCalibrate()) return false;
+  if (!waitRemoteIdle(timeoutMs)) return false;
+  if (!refreshDeviceInfo(100)) return false;
+  return remoteColorCalibrated();
 }
 
 //==========================================================================

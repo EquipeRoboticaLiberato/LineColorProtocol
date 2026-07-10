@@ -64,6 +64,15 @@ void appendU16BE(uint8_t *data, uint8_t &len, uint16_t value)
   data[len++] = (uint8_t)(value & 0xFF);
 }
 
+// Descricao: Adiciona um valor assinado de 16 bits em formato big-endian no buffer.
+// Entradas: `data`, `len`, `value`.
+// Quando usar: ao serializar limites calibrados que podem ficar negativos.
+// Exemplo: `LineColorProtocol::appendI16BE(frame, frameLen, -12);`
+void appendI16BE(uint8_t *data, uint8_t &len, int16_t value)
+{
+  appendU16BE(data, len, (uint16_t)value);
+}
+
 // Descricao: Adiciona um valor de 32 bits em formato big-endian no buffer.
 // Entradas: `data`, `len`, `value`.
 // Quando usar: ao serializar tempos, contadores ou mascaras de 32 bits.
@@ -83,6 +92,15 @@ void appendU32BE(uint8_t *data, uint8_t &len, uint32_t value)
 uint16_t readU16BE(const uint8_t *data)
 {
   return ((uint16_t)data[0] << 8) | data[1];
+}
+
+// Descricao: Le um inteiro assinado de 16 bits em formato big-endian a partir de um buffer.
+// Entradas: `data`.
+// Quando usar: ao interpretar limites calibrados de cor.
+// Exemplo: `int16_t v = LineColorProtocol::readI16BE(&frame[0]);`
+int16_t readI16BE(const uint8_t *data)
+{
+  return (int16_t)readU16BE(data);
 }
 
 // Descricao: Le um inteiro de 32 bits em formato big-endian a partir de um buffer.
@@ -128,6 +146,10 @@ bool isReadCommand(uint8_t command)
     case READ_DEVICE_INFO:
     case READ_LINE_COLOR_SNAPSHOT:
     case READ_STATS:
+    case READ_COLOR_RGB:
+    case READ_COLOR_HSV:
+    case READ_COLOR_CORRECTED_RGB:
+    case READ_COLOR_CALIBRATION:
       return true;
     default:
       return false;
@@ -159,6 +181,10 @@ uint8_t expectedResponseLength(uint8_t command, uint8_t sensorCount)
     case READ_LINE_COLOR_SNAPSHOT: return (uint8_t)(sensorCount * 2 + 11); // seq + line + colors(4) + crc
     case READ_DEVICE_INFO:         return 10;                              // seq + 8 payload + crc
     case READ_STATS:               return 26;                              // seq + 24 payload + crc
+    case READ_COLOR_RGB:           return 8;                               // seq + 2 sensores*RGB(3) + crc
+    case READ_COLOR_HSV:           return 10;                              // seq + 2 sensores*(H u16 + S% + V%) + crc
+    case READ_COLOR_CORRECTED_RGB: return 14;                              // seq + 2 sensores*RGB corrigido(3*u16) + crc
+    case READ_COLOR_CALIBRATION:   return 26;                              // seq + 2 sensores*(minRGB + maxRGB)(6*i16) + crc
     case SET_THRESHOLD:
     case QTR_CALIBRATE:
     case CALIBRATE_COLOR:
@@ -168,14 +194,23 @@ uint8_t expectedResponseLength(uint8_t command, uint8_t sensorCount)
 }
 
 // Descricao: Monta a mascara de status do protocolo a partir dos estados do sensor.
-// Entradas: `qtrCalibrated`, `onLine`.
+// Entradas: estados resumidos de linha, cor e calibracao em andamento.
 // Quando usar: no escravo, para publicar estado resumido nos snapshots e no device info.
-// Exemplo: `uint8_t flags = LineColorProtocol::protocolStatusFlags(true, false);`
-uint8_t protocolStatusFlags(bool qtrCalibrated, bool onLine)
+// Exemplo: `uint8_t flags = LineColorProtocol::protocolStatusFlags(true, false, true);`
+uint8_t protocolStatusFlags(bool qtrCalibrated,
+                            bool onLine,
+                            bool colorCalibrated,
+                            bool busy,
+                            bool lineCalibrating,
+                            bool colorCalibrating)
 {
   uint8_t flags = 0;
-  if (qtrCalibrated) flags |= STATUS_QTR_CALIBRATED;
-  if (onLine)        flags |= STATUS_ON_LINE;
+  if (qtrCalibrated)     flags |= STATUS_QTR_CALIBRATED;
+  if (onLine)            flags |= STATUS_ON_LINE;
+  if (colorCalibrated)   flags |= STATUS_COLOR_CALIBRATED;
+  if (busy)              flags |= STATUS_BUSY;
+  if (lineCalibrating)   flags |= STATUS_LINE_CALIBRATING;
+  if (colorCalibrating)  flags |= STATUS_COLOR_CALIBRATING;
   return flags;
 }
 
@@ -197,6 +232,10 @@ const char *commandName(uint8_t command)
     case ARM_EEPROM_WRITE: return "ARM_EEPROM_WRITE";
     case READ_LINE_COLOR_SNAPSHOT: return "READ_LINE_COLOR_SNAPSHOT";
     case READ_STATS: return "READ_STATS";
+    case READ_COLOR_RGB: return "READ_COLOR_RGB";
+    case READ_COLOR_HSV: return "READ_COLOR_HSV";
+    case READ_COLOR_CORRECTED_RGB: return "READ_COLOR_CORRECTED_RGB";
+    case READ_COLOR_CALIBRATION: return "READ_COLOR_CALIBRATION";
     default: return "UNKNOWN";
   }
 }
